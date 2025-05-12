@@ -6,6 +6,7 @@ import {
 	NodeConnectionType,
     INodeInputConfiguration,
 	INodeInputFilter,
+	INodeProperties
 } from 'n8n-workflow';
 import { Agent, Wallet, Network, NetworksConfig, NetworkName, logger } from '@binkai/core';
 import { SwapPlugin } from '@binkai/swap-plugin';
@@ -208,6 +209,156 @@ function getInputs(
 	}
 	return ['main', ...getInputData(specialInputs)] as Array<NodeConnectionType | INodeInputConfiguration>;
 }
+
+const agentTypeProperty: INodeProperties = {
+	displayName: 'Agent',
+	name: 'agent',
+	type: 'options',
+	noDataExpression: true,
+	// eslint-disable-next-line n8n-nodes-base/node-param-options-type-unsorted-items
+	options: [
+		{
+			name: 'Tools Agent',
+			value: 'toolsAgent',
+			description:
+				'Utilizes structured tool schemas for precise and reliable tool selection and execution. Recommended for complex tasks requiring accurate and consistent tool usage, but only usable with models that support tool calling.',
+		},
+		{
+			name: 'Conversational Agent',
+			value: 'conversationalAgent',
+			description:
+				'Describes tools in the system prompt and parses JSON responses for tool calls. More flexible but potentially less reliable than the Tools Agent. Suitable for simpler interactions or with models not supporting structured schemas.',
+		},
+		{
+			name: 'OpenAI Functions Agent',
+			value: 'openAiFunctionsAgent',
+			description:
+				"Leverages OpenAI's function calling capabilities to precisely select and execute tools. Excellent for tasks requiring structured outputs when working with OpenAI models.",
+		},
+		{
+			name: 'Plan and Execute Agent',
+			value: 'planAndExecuteAgent',
+			description:
+				'Creates a high-level plan for complex tasks and then executes each step. Suitable for multi-stage problems or when a strategic approach is needed.',
+		},
+		{
+			name: 'ReAct Agent',
+			value: 'reActAgent',
+			description:
+				'Combines reasoning and action in an iterative process. Effective for tasks that require careful analysis and step-by-step problem-solving.',
+		},
+		{
+			name: 'SQL Agent',
+			value: 'sqlAgent',
+			description:
+				'Specializes in interacting with SQL databases. Ideal for data analysis tasks, generating queries, or extracting insights from structured data.',
+		},
+	],
+	default: '',
+};
+
+export const promptTypeOptions: INodeProperties = {
+	displayName: 'Source for Prompt (User Message)',
+	name: 'promptType',
+	type: 'options',
+	options: [
+		{
+			name: 'Connected Chat Trigger Node',
+			value: 'auto',
+			description:
+				"Looks for an input field called 'chatInput' that is coming from a directly connected Chat Trigger",
+		},
+		{
+			name: 'Define below',
+			value: 'define',
+			description: 'Use an expression to reference data in previous nodes or enter static text',
+		},
+	],
+	default: 'auto',
+};
+
+export const textFromPreviousNode: INodeProperties = {
+	displayName: 'Prompt (User Message)',
+	name: 'text',
+	type: 'string',
+	required: true,
+	default: '={{ $json.chatInput }}',
+	typeOptions: {
+		rows: 2,
+	},
+	disabledOptions: { show: { promptType: ['auto'] } },
+};
+
+
+export const textInput: INodeProperties = {
+	displayName: 'Prompt (User Message)',
+	name: 'text',
+	type: 'string',
+	required: true,
+	default: '',
+	placeholder: 'e.g. Hello, how can you help me?',
+	typeOptions: {
+		rows: 2,
+	},
+};
+
+export const SYSTEM_MESSAGE = `Assistant is a large language model trained by OpenAI.
+
+Assistant is designed to be able to assist with a wide range of tasks, from answering simple questions to providing in-depth explanations and discussions on a wide range of topics. As a language model, Assistant is able to generate human-like text based on the input it receives, allowing it to engage in natural-sounding conversations and provide responses that are coherent and relevant to the topic at hand.
+
+Assistant is constantly learning and improving, and its capabilities are constantly evolving. It is able to process and understand large amounts of text, and can use this knowledge to provide accurate and informative responses to a wide range of questions. Additionally, Assistant is able to generate its own text based on the input it receives, allowing it to engage in discussions and provide explanations and descriptions on a wide range of topics.
+
+Overall, Assistant is a powerful system that can help with a wide range of tasks and provide valuable insights and information on a wide range of topics. Whether you need help with a specific question or just want to have a conversation about a particular topic, Assistant is here to assist.`;
+
+export const toolsAgentProperties: INodeProperties[] = [
+	{
+		displayName: 'Options',
+		name: 'options',
+		type: 'collection',
+		displayOptions: {
+			show: {
+				agent: ['toolsAgent'],
+			},
+		},
+		default: {},
+		placeholder: 'Add Option',
+		options: [
+			{
+				displayName: 'System Message',
+				name: 'systemMessage',
+				type: 'string',
+				default: SYSTEM_MESSAGE,
+				description: 'The message that will be sent to the agent before the conversation starts',
+				typeOptions: {
+					rows: 6,
+				},
+			},
+			{
+				displayName: 'Max Iterations',
+				name: 'maxIterations',
+				type: 'number',
+				default: 10,
+				description: 'The maximum number of iterations the agent will run before stopping',
+			},
+			{
+				displayName: 'Return Intermediate Steps',
+				name: 'returnIntermediateSteps',
+				type: 'boolean',
+				default: false,
+				description: 'Whether or not the output should include intermediate steps the agent took',
+			},
+			{
+				displayName: 'Automatically Passthrough Binary Images',
+				name: 'passthroughBinaryImages',
+				type: 'boolean',
+				default: true,
+				description:
+					'Whether or not binary images should be automatically passed through to the agent as image type messages',
+			},
+		],
+	},
+];
+
 export class BinkAINode implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'Bink AI Agent',
@@ -235,12 +386,137 @@ export class BinkAINode implements INodeType {
 		],
 		properties: [
 			{
-				displayName: 'Input Message',
-				name: 'input',
-				type: 'string',
+				displayName:
+					'Tip: Get a feel for agents with our quick <a href="https://docs.n8n.io/advanced-ai/intro-tutorial/" target="_blank">tutorial</a> or see an <a href="/templates/1954" target="_blank">example</a> of how this node works',
+				name: 'notice_tip',
+				type: 'notice',
 				default: '',
-				description: 'Chat input from user',
+				displayOptions: {
+					show: {
+						agent: ['conversationalAgent', 'toolsAgent'],
+					},
+				},
 			},
+			{
+				displayName:
+					"This node is using Agent that has been deprecated. Please switch to using 'Tools Agent' instead.",
+				name: 'deprecated',
+				type: 'notice',
+				default: '',
+				displayOptions: {
+					show: {
+						agent: [
+							'conversationalAgent',
+							'openAiFunctionsAgent',
+							'planAndExecuteAgent',
+							'reActAgent',
+							'sqlAgent',
+						],
+					},
+				},
+			},
+			// Make Conversational Agent the default agent for versions 1.5 and below
+			{
+				...agentTypeProperty,
+				options: agentTypeProperty?.options?.filter(
+					(o) => 'value' in o && o.value !== 'toolsAgent',
+				),
+				displayOptions: { show: { '@version': [{ _cnd: { lte: 1.5 } }] } },
+				default: 'conversationalAgent',
+			},
+			// Make Tools Agent the default agent for versions 1.6 and 1.7
+			{
+				...agentTypeProperty,
+				displayOptions: { show: { '@version': [{ _cnd: { between: { from: 1.6, to: 1.7 } } }] } },
+				default: 'toolsAgent',
+			},
+			// Make Tools Agent the only agent option for versions 1.8 and above
+			{
+				...agentTypeProperty,
+				type: 'hidden',
+				displayOptions: { show: { '@version': [{ _cnd: { gte: 1.8 } }] } },
+				default: 'toolsAgent',
+			},
+			{
+				...promptTypeOptions,
+				displayOptions: {
+					hide: {
+						// '@version': [{ _cnd: { lte: 1.2 } }],
+						agent: ['sqlAgent'],
+					},
+				},
+			},
+			{
+				...textFromPreviousNode,
+				displayOptions: {
+					show: { promptType: ['auto'], '@version': [{ _cnd: { gte: 1.7 } }] },
+					// SQL Agent has data source and credentials parameters so we need to include this input there manually
+					// to preserve the order
+					hide: {
+						agent: ['sqlAgent'],
+					},
+				},
+			},
+			{
+				...textInput,
+				displayOptions: {
+					show: {
+						promptType: ['define'],
+					},
+					hide: {
+						agent: ['sqlAgent'],
+					},
+				},
+			},
+			{
+				displayName: 'For more reliable structured output parsing, consider using the Tools agent',
+				name: 'notice',
+				type: 'notice',
+				default: '',
+				displayOptions: {
+					show: {
+						hasOutputParser: [true],
+						agent: [
+							'conversationalAgent',
+							'reActAgent',
+							'planAndExecuteAgent',
+							'openAiFunctionsAgent',
+						],
+					},
+				},
+			},
+			{
+				displayName: 'Require Specific Output Format',
+				name: 'hasOutputParser',
+				type: 'boolean',
+				default: false,
+				noDataExpression: true,
+				displayOptions: {
+					hide: {
+						'@version': [{ _cnd: { lte: 1.2 } }],
+						agent: ['sqlAgent'],
+					},
+				},
+			},
+			{
+				displayName: `Connect an <a data-action='openSelectiveNodeCreator' data-action-parameter-connectiontype='${NodeConnectionType.AiOutputParser}'>output parser</a> on the canvas to specify the output format you require`,
+				name: 'notice',
+				type: 'notice',
+				default: '',
+				displayOptions: {
+					show: {
+						hasOutputParser: [true],
+						agent: ['toolsAgent'],
+					},
+				},
+			},
+
+			...toolsAgentProperties,
+			// ...conversationalAgentProperties,
+			// ...openAiFunctionsAgentProperties,
+			// ...reActAgentAgentProperties,
+			// ...sqlAgentAgentProperties,
+			// ...planAndExecuteAgentProperties,
 		],
 	};
 
