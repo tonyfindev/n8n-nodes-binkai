@@ -80,6 +80,9 @@ importers:
       '@binkai/wallet-plugin':
         specifier: ^0.3.0-alpha.0
         version: 0.3.0-alpha.0(@browserbasehq/sdk@2.5.0)(@browserbasehq/stagehand@1.14.0(@playwright/test@1.52.0)(bufferutil@4.0.9)(deepmerge@4.3.1)(dotenv@16.5.0)(openai@4.98.0(ws@7.5.10(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.24.4))(utf-8-validate@5.0.10)(zod@3.24.4))(@ibm-cloud/watsonx-ai@1.6.4(@langchain/core@0.3.55(openai@4.98.0(ws@7.5.10(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.24.4))))(@types/debug@4.1.12)(@types/node@22.15.17)(arweave@1.15.7)(axios@1.9.0)(bufferutil@4.0.9)(crypto-js@4.2.0)(fast-xml-parser@4.5.3)(fastestsmallesttextencoderdecoder@1.0.22)(ibm-cloud-sdk-core@5.3.2)(ignore@5.3.2)(jsonwebtoken@9.0.2)(openai@4.98.0(ws@7.5.10(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.24.4))(pg@8.13.1)(playwright@1.52.0)(typescript@5.8.3)(utf-8-validate@5.0.10)(ws@7.5.10(bufferutil@4.0.9)(utf-8-validate@5.0.10))(yaml@2.7.1)(zod-to-json-schema@3.24.5(zod@3.24.4))
+      '@langchain/community':
+        specifier: ^0.3.42
+        version: 0.3.42(@browserbasehq/sdk@2.5.0)(@browserbasehq/stagehand@1.14.0(@playwright/test@1.52.0)(bufferutil@4.0.9)(deepmerge@4.3.1)(dotenv@16.5.0)(openai@4.98.0(ws@7.5.10(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.24.4))(utf-8-validate@5.0.10)(zod@3.24.4))(@ibm-cloud/watsonx-ai@1.6.4(@langchain/core@0.3.55(openai@4.98.0(ws@7.5.10(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.24.4))))(@langchain/anthropic@0.3.20(@langchain/core@0.3.55(openai@4.98.0(ws@7.5.10(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.24.4))))(@langchain/core@0.3.55(openai@4.98.0(ws@7.5.10(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.24.4)))(@langchain/groq@0.2.2(@langchain/core@0.3.55(openai@4.98.0(ws@7.5.10(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.24.4))))(@langchain/mistralai@0.2.0(@langchain/core@0.3.55(openai@4.98.0(ws@7.5.10(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.24.4))))(@langchain/ollama@0.2.0(@langchain/core@0.3.55(openai@4.98.0(ws@7.5.10(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.24.4))))(axios@1.9.0)(crypto-js@4.2.0)(fast-xml-parser@4.5.3)(ibm-cloud-sdk-core@5.3.2)(ignore@5.3.2)(jsonwebtoken@9.0.2)(lodash@4.17.21)(openai@4.98.0(ws@7.5.10(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.24.4))(pg@8.13.1)(playwright@1.52.0)(ws@7.5.10(bufferutil@4.0.9)(utf-8-validate@5.0.10))
       '@langchain/core':
         specifier: ^0.3.42
         version: 0.3.55(openai@4.98.0(ws@7.5.10(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.24.4))
@@ -89,6 +92,9 @@ importers:
       '@solana/web3.js':
         specifier: ^1.98.2
         version: 1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
+      chat_memory:
+        specifier: link:@langchain/community/memory/chat_memory
+        version: link:@langchain/community/memory/chat_memory
       ethers:
         specifier: ^6.13.5
         version: 6.14.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
@@ -98,6 +104,15 @@ importers:
       langchain:
         specifier: ^0.3.24
         version: 0.3.24(@langchain/anthropic@0.3.20(@langchain/core@0.3.55(openai@4.98.0(ws@7.5.10(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.24.4))))(@langchain/core@0.3.55(openai@4.98.0(ws@7.5.10(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.24.4)))(@langchain/groq@0.2.2(@langchain/core@0.3.55(openai@4.98.0(ws@7.5.10(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.24.4))))(@langchain/mistralai@0.2.0(@langchain/core@0.3.55(openai@4.98.0(ws@7.5.10(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.24.4))))(@langchain/ollama@0.2.0(@langchain/core@0.3.55(openai@4.98.0(ws@7.5.10(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.24.4))))(axios@1.9.0)(openai@4.98.0(ws@7.5.10(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.24.4))(ws@7.5.10(bufferutil@4.0.9)(utf-8-validate@5.0.10))
+      lodash:
+        specifier: ^4.17.21
+        version: 4.17.21
+      memory:
+        specifier: link:@langchain/community/memory
+        version: link:@langchain/community/memory
+      zod:
+        specifier: ^3.24.4
+        version: 3.24.4
     devDependencies:
       '@types/node':
         specifier: ^22.15.2
