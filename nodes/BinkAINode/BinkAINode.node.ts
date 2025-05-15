@@ -8,7 +8,9 @@ import {
 	INodeInputFilter,
 	INodeProperties
 } from 'n8n-workflow';
-import { Agent, Wallet, Network, NetworksConfig, NetworkName, logger } from '@binkai/core';
+import { textInput, textFromPreviousNode } from '../../utils/descriptions';
+
+import { Agent, Wallet, Network, NetworksConfig, NetworkName, logger, OpenAIModel } from '@binkai/core';
 import { SwapPlugin } from '@binkai/swap-plugin';
 import { TokenPlugin } from '@binkai/token-plugin';
 import { BridgePlugin } from '@binkai/bridge-plugin';
@@ -34,8 +36,8 @@ function getInputs(
 		| 'conversationalAgent'
 		| 'openAiFunctionsAgent'
 		| 'planAndExecuteAgent'
-		| 'reActAgent'
-		| 'sqlAgent',
+		| 'reActAgent',
+		// | 'sqlAgent',
 	hasOutputParser?: boolean,
 ): Array<NodeConnectionType | INodeInputConfiguration> {
 	interface SpecialInput {
@@ -181,15 +183,6 @@ function getInputs(
 				type: 'ai_outputParser' as NodeConnectionType,
 			},
 		];
-	} else if (agent === 'sqlAgent') {
-		specialInputs = [
-			{
-				type: 'ai_languageModel' as NodeConnectionType,
-			},
-			{
-				type: 'ai_memory' as NodeConnectionType,
-			},
-		];
 	} else if (agent === 'planAndExecuteAgent') {
 		specialInputs = [
 			{
@@ -247,15 +240,47 @@ const agentTypeProperty: INodeProperties = {
 			description:
 				'Combines reasoning and action in an iterative process. Effective for tasks that require careful analysis and step-by-step problem-solving.',
 		},
-		{
-			name: 'SQL Agent',
-			value: 'sqlAgent',
-			description:
-				'Specializes in interacting with SQL databases. Ideal for data analysis tasks, generating queries, or extracting insights from structured data.',
-		},
+	
 	],
 	default: '',
 };
+
+export const pluginTypeProperty: INodeProperties = {
+	displayName: 'Blockchain Plugin',
+	name: 'plugin',
+	type: 'options',
+	options: [
+		{
+			name: 'Swap',
+			value: 'binkSwap',
+			description: 'Action swap token A to token B using BinkAgent Plugin',
+		},
+		{
+			name: 'Bridge',
+			value: 'binkBridge',
+			description: 'Action bridge token A to token B using BinkAgent Plugin',
+		},
+		{
+			name: 'Search Token Info',
+			value: 'binkToken',
+			description: 'Search for token info on Bink Agent Plugin',
+		},
+		{
+			name: 'Staking',
+			value: 'binkStaking',
+			description: 'Stake and Unstake tokens on Bink Agent Plugin',
+		},
+		{
+			name: 'Wallet',
+			value: 'binkWallet',
+			description: 'Manage your Bink Agent Plugin Wallet',
+		},
+		
+	],
+	default: '',
+};
+
+
 
 export const promptTypeOptions: INodeProperties = {
 	displayName: 'Source for Prompt (User Message)',
@@ -277,30 +302,7 @@ export const promptTypeOptions: INodeProperties = {
 	default: 'auto',
 };
 
-export const textFromPreviousNode: INodeProperties = {
-	displayName: 'Prompt (User Message)',
-	name: 'text',
-	type: 'string',
-	required: true,
-	default: '={{ $json.chatInput }}',
-	typeOptions: {
-		rows: 2,
-	},
-	disabledOptions: { show: { promptType: ['auto'] } },
-};
 
-
-export const textInput: INodeProperties = {
-	displayName: 'Prompt (User Message)',
-	name: 'text',
-	type: 'string',
-	required: true,
-	default: '',
-	placeholder: 'e.g. Hello, how can you help me?',
-	typeOptions: {
-		rows: 2,
-	},
-};
 
 export const SYSTEM_MESSAGE = `Assistant is a large language model trained by OpenAI.
 
@@ -407,10 +409,9 @@ export class BinkAINode implements INodeType {
 					show: {
 						agent: [
 							'conversationalAgent',
-							'openAiFunctionsAgent',
-							'planAndExecuteAgent',
-							'reActAgent',
-							'sqlAgent',
+							// 'openAiFunctionsAgent',
+							// 'planAndExecuteAgent',
+							// 'reActAgent',
 						],
 					},
 				},
@@ -478,9 +479,9 @@ export class BinkAINode implements INodeType {
 						hasOutputParser: [true],
 						agent: [
 							'conversationalAgent',
-							'reActAgent',
-							'planAndExecuteAgent',
-							'openAiFunctionsAgent',
+							// 'reActAgent',
+							// 'planAndExecuteAgent',
+							// 'openAiFunctionsAgent',
 						],
 					},
 				},
@@ -521,158 +522,193 @@ export class BinkAINode implements INodeType {
 	};
 
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
-		const input = this.getNodeParameter('input', 0) as string;
-		const credentials = await this.getCredentials('binkaiCredentialsApi');
-		const mnemonic = credentials.walletMnemonic as string;
-		const openaiApiKey = credentials.apiKey as string;
+		// Add these debug lines to help trace the issue
+		const items = this.getInputData();
+		
+		// Use try/catch to get better error information
+		try {
+			const promptType = this.getNodeParameter('promptType', 0, 'auto') as string;
+			
+			// Handle potential empty or undefined values better
+			let text = '';
+			if (promptType === 'auto') {
+				// Use a more resilient approach to get the text
+				try {
+					text = this.getNodeParameter('text', 0, '{{ $json.chatInput }}') as string;
+					// If text is a template expression that didn't resolve properly, provide fallback
+					if (text.includes('{{') && text.includes('}}')) {
+						const inputData = items[0]?.json;
+						text = inputData?.chatInput ? String(inputData.chatInput) : '';
+					}
+				} catch (e) {
+					// Try to extract directly from input if parameter access fails
+					const inputData = items[0]?.json;
+					text = inputData?.chatInput ? String(inputData.chatInput) : '';
+				}
+			} else {
+				text = this.getNodeParameter('text', 0, '') as string;
+			}
+			
+			
+			// Ensure text is a string even if undefined or null
+			text = text || '';
+			
+			const credentials = await this.getCredentials('binkaiCredentialsApi');
+			const mnemonic = credentials.walletMnemonic as string;
+			const openaiApiKey = credentials.apiKey as string;
 
-		if (openaiApiKey) {
-			process.env.OPENAI_API_KEY = openaiApiKey;
-		}
-		logger.enable(); // optional
+			
+			logger.enable(); // optional
 
-		const BSC_RPC_URL = 'https://binance.llamarpc.com';
-		const ETHEREUM_RPC_URL = 'https://eth.llamarpc.com';
-		const SOLANA_RPC_URL = 'https://api.mainnet-beta.solana.com';
-		const BIRDEYE_API_KEY = '';
-		const ALCHEMY_API_KEY = '';
-		const networks: NetworksConfig['networks'] = {
-			bnb: {
-				type: 'evm',
-				config: {
-					chainId: 56,
-					rpcUrl: BSC_RPC_URL,
-					name: 'BNB Chain',
-					nativeCurrency: {
-						name: 'BNB',
-						symbol: 'BNB',
-						decimals: 18,
+			const BSC_RPC_URL = 'https://binance.llamarpc.com';
+			const ETHEREUM_RPC_URL = 'https://eth.llamarpc.com';
+			const SOLANA_RPC_URL = 'https://api.mainnet-beta.solana.com';
+			const BIRDEYE_API_KEY = '';
+			const ALCHEMY_API_KEY = '';
+			const networks: NetworksConfig['networks'] = {
+				bnb: {
+					type: 'evm',
+					config: {
+						chainId: 56,
+						rpcUrl: BSC_RPC_URL,
+						name: 'BNB Chain',
+						nativeCurrency: {
+							name: 'BNB',
+							symbol: 'BNB',
+							decimals: 18,
+						},
 					},
 				},
-			},
-			ethereum: {
-				type: 'evm',
-				config: {
-					chainId: 1,
-					rpcUrl: ETHEREUM_RPC_URL,
-					name: 'Ethereum',
-					nativeCurrency: {
-						name: 'Ether',
-						symbol: 'ETH',
-						decimals: 18,
+				ethereum: {
+					type: 'evm',
+					config: {
+						chainId: 1,
+						rpcUrl: ETHEREUM_RPC_URL,
+						name: 'Ethereum',
+						nativeCurrency: {
+							name: 'Ether',
+							symbol: 'ETH',
+							decimals: 18,
+						},
 					},
 				},
-			},
-			[NetworkName.SOLANA]: {
-				type: 'solana',
-				config: {
-					rpcUrl: SOLANA_RPC_URL,
-					name: 'Solana',
-					nativeCurrency: {
+				[NetworkName.SOLANA]: {
+					type: 'solana',
+					config: {
+						rpcUrl: SOLANA_RPC_URL,
 						name: 'Solana',
-						symbol: 'SOL',
-						decimals: 9,
+						nativeCurrency: {
+							name: 'Solana',
+							symbol: 'SOL',
+							decimals: 9,
+						},
 					},
 				},
-			},
-		};
+			};
 
-		const network = new Network({ networks });
-		const wallet = new Wallet(
-			{
-				seedPhrase: mnemonic || 'test test test test test test test test test test test test',
-				index: 0,
-			},
-			network,
-		);
-
-		const agent = new Agent(
-			{
-				model: 'gpt-4o',
-				temperature: 0,
-			},
-			wallet,
-			networks,
-		);
-
-		const swapPlugin = new SwapPlugin();
-		const bridgePlugin = new BridgePlugin();
-		const tokenPlugin = new TokenPlugin();
-		const stakingPlugin = new StakingPlugin();
-		const walletPlugin = new WalletPlugin();
-		const bnbProvider = new BnbProvider({ rpcUrl: BSC_RPC_URL });
-		const solanaProvider = new SolanaProvider({ rpcUrl: SOLANA_RPC_URL });
-		const bscProvider = new JsonRpcProvider(BSC_RPC_URL);
-		const thena = new ThenaProvider(bscProvider, 56);
-		const pancakeswap = new PancakeSwapProvider(bscProvider, 56);
-		const fourMeme = new FourMemeProvider(bscProvider, 56);
-		const venus = new VenusProvider(bscProvider, 56);
-		const oku = new OkuProvider(bscProvider, 56);
-		const kyber = new KyberProvider(bscProvider, 56);
-		const jupiter = new JupiterProvider(new Connection(SOLANA_RPC_URL));
-
-		const birdeyeApi = new BirdeyeProvider({
-			apiKey: BIRDEYE_API_KEY,
-		});
-
-		const alchemyApi = new AlchemyProvider({
-			apiKey: ALCHEMY_API_KEY,
-		});
-
-		const debridge = new deBridgeProvider(
-			[bscProvider, new Connection(SOLANA_RPC_URL)],
-			56,
-			7565164,
-		);
-
-		await walletPlugin.initialize({
-			defaultChain: 'bnb',
-			providers: [bnbProvider, birdeyeApi, alchemyApi, solanaProvider],
-			supportedChains: ['bnb', 'solana', 'ethereum'],
-		});
-
-		await swapPlugin.initialize({
-			defaultSlippage: 0.5,
-			defaultChain: 'bnb',
-			providers: [pancakeswap, fourMeme, thena, oku, kyber, jupiter],
-			supportedChains: ['bnb', 'solana'],
-		});
-
-		await tokenPlugin.initialize({
-			defaultChain: 'bnb',
-			providers: [birdeyeApi],
-			supportedChains: ['solana', 'bnb', 'ethereum'],
-		});
-
-		await stakingPlugin.initialize({
-			defaultSlippage: 0.5,
-			defaultChain: 'bnb',
-			providers: [venus],
-			supportedChains: ['bnb', 'ethereum'],
-		});
-
-		await bridgePlugin.initialize({
-			defaultChain: 'bnb',
-			providers: [debridge],
-			supportedChains: ['bnb', 'solana'],
-		});
-
-		await agent.registerPlugin(swapPlugin);
-		await agent.registerPlugin(walletPlugin);
-		await agent.registerPlugin(tokenPlugin);
-		await agent.registerPlugin(stakingPlugin);
-		await agent.registerPlugin(bridgePlugin);
-
-		const response = await agent.execute(input);
-
-		return [
-			[
+			const network = new Network({ networks });
+			const wallet = new Wallet(
 				{
-					json: {
-						result: typeof response === 'string' ? response : JSON.stringify(response, null, 2),
-					},
+					seedPhrase: mnemonic || 'test test test test test test test test test test test test',
+					index: 0,
 				},
-			],
-		];
+				network,
+			);
+
+			const llm = new OpenAIModel({
+				apiKey: openaiApiKey,
+				model: 'gpt-4o',
+			});
+			const agent = new Agent(
+				llm,
+				{
+					temperature: 0,
+				},
+				wallet,
+				networks,
+			);
+
+			const swapPlugin = new SwapPlugin();
+			const bridgePlugin = new BridgePlugin();
+			const tokenPlugin = new TokenPlugin();
+			const stakingPlugin = new StakingPlugin();
+			const walletPlugin = new WalletPlugin();
+			const bnbProvider = new BnbProvider({ rpcUrl: BSC_RPC_URL });
+			const solanaProvider = new SolanaProvider({ rpcUrl: SOLANA_RPC_URL });
+			const bscProvider = new JsonRpcProvider(BSC_RPC_URL);
+			const thena = new ThenaProvider(bscProvider, 56);
+			const pancakeswap = new PancakeSwapProvider(bscProvider, 56);
+			const fourMeme = new FourMemeProvider(bscProvider, 56);
+			const venus = new VenusProvider(bscProvider, 56);
+			const oku = new OkuProvider(bscProvider, 56);
+			const kyber = new KyberProvider(bscProvider, 56);
+			const jupiter = new JupiterProvider(new Connection(SOLANA_RPC_URL));
+
+			const birdeyeApi = new BirdeyeProvider({
+				apiKey: BIRDEYE_API_KEY,
+			});
+
+			const alchemyApi = new AlchemyProvider({
+				apiKey: ALCHEMY_API_KEY,
+			});
+
+			const debridge = new deBridgeProvider(
+				[bscProvider, new Connection(SOLANA_RPC_URL)],
+				56,
+				7565164,
+			);
+
+			await walletPlugin.initialize({
+				defaultChain: 'bnb',
+				providers: [bnbProvider, birdeyeApi, alchemyApi, solanaProvider],
+				supportedChains: ['bnb', 'solana', 'ethereum'],
+			});
+
+			await swapPlugin.initialize({
+				defaultSlippage: 0.5,
+				defaultChain: 'bnb',
+				providers: [pancakeswap, fourMeme, thena, oku, kyber, jupiter],
+				supportedChains: ['bnb', 'solana'],
+			});
+
+			await tokenPlugin.initialize({
+				defaultChain: 'bnb',
+				providers: [birdeyeApi],
+				supportedChains: ['solana', 'bnb', 'ethereum'],
+			});
+
+			await stakingPlugin.initialize({
+				defaultSlippage: 0.5,
+				defaultChain: 'bnb',
+				providers: [venus],
+				supportedChains: ['bnb', 'ethereum'],
+			});
+
+			await bridgePlugin.initialize({
+				defaultChain: 'bnb',
+				providers: [debridge],
+				supportedChains: ['bnb', 'solana'],
+			});
+
+			await agent.registerPlugin(swapPlugin);
+			await agent.registerPlugin(walletPlugin);
+			await agent.registerPlugin(tokenPlugin);
+			await agent.registerPlugin(stakingPlugin);
+			await agent.registerPlugin(bridgePlugin);
+
+			const response = await agent.execute(text);
+
+			return [
+				[
+					{
+						json: {
+							result: typeof response === 'string' ? response : JSON.stringify(response, null, 2),
+						},
+					},
+				],
+			];
+		} catch (error) {
+			throw new Error(`Error executing BinkAI node: ${error.message}`);
+		}
 	}
 }
