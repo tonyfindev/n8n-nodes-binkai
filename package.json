@@ -40,7 +40,8 @@
     ],
     "nodes": [
       "dist/nodes/BinkAINode/BinkAINode.node.js",
-      "dist/nodes/tools/ToolCalculator/ToolCalculator.node.js"
+      "dist/nodes/tools/ToolCalculator/ToolCalculator.node.js",
+      "dist/nodes/tools/ToolSwap/ToolSwap.node.js"
     ]
   },
   "devDependencies": {
