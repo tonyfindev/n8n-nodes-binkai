@@ -4,40 +4,46 @@ import {
 	INodeType,
 	INodeTypeDescription,
 	NodeConnectionType,
-    INodeInputConfiguration,
+	INodeInputConfiguration,
 	INodeInputFilter,
 	INodeProperties,
-	NodeOperationError
+	NodeOperationError,
+	jsonParse,
 } from 'n8n-workflow';
-import { conversationalAgentProperties, pluginsTypeProperties } from './description';
-import { textInput, textFromPreviousNode } from '../../utils/descriptions';
-import { getOptionalOutputParser } from '../../utils/output_parsers/N8nOutputParser';
-import { isChatInstance, getPromptInputByType, getConnectedTools } from '../../utils/helpers';
-import { checkForStructuredTools, extractParsedOutput } from '../../utils/utils';
-import { getTools } from '../../utils/common';
+import { pluginsTypeProperties } from './description';
+import { textInput } from '../../utils/descriptions';
+import { getOptionalOutputParser, N8nOutputParser } from '../../utils/output_parsers/N8nOutputParser';
+import { getPromptInputByType } from '../../utils/helpers';
+import {
+	getChatModel,
+	getOptionalMemory,
+	getTools,
+} from '../../utils/common';
 
 import type { BaseChatMemory } from '@langchain/community/memory/chat_memory';
-import { Agent, Wallet, Network, NetworksConfig, NetworkName, logger, OpenAIModel } from '@binkai/core';
+import {
+	Wallet,
+	Network,
+	NetworksConfig,
+	NetworkType,
+} from '@binkai/core';
+import { ethers, JsonRpcProvider } from 'ethers';
 import { SwapPlugin } from '@binkai/swap-plugin';
 import { TokenPlugin } from '@binkai/token-plugin';
-import { BridgePlugin } from '@binkai/bridge-plugin';
-import { StakingPlugin } from '@binkai/staking-plugin';
 import { WalletPlugin } from '@binkai/wallet-plugin';
-import { JsonRpcProvider } from 'ethers';
-import { BnbProvider, SolanaProvider } from '@binkai/rpc-provider';
-import { ThenaProvider } from '@binkai/thena-provider';
-import { PancakeSwapProvider } from '@binkai/pancakeswap-provider';
-import { VenusProvider } from '@binkai/venus-provider';
-import { OkuProvider } from '@binkai/oku-provider';
-import { KyberProvider } from '@binkai/kyber-provider';
-import { FourMemeProvider } from '@binkai/four-meme-provider';
 import { JupiterProvider } from '@binkai/jupiter-provider';
-import { Connection } from '@solana/web3.js';
-import { deBridgeProvider } from '@binkai/debridge-provider';
-import { BirdeyeProvider } from '@binkai/birdeye-provider';
+import { KyberProvider } from '@binkai/kyber-provider';
 import { AlchemyProvider } from '@binkai/alchemy-provider';
-import { PromptTemplate } from '@langchain/core/prompts';
-import { N8NModel } from './N8NModel';
+import { N8nLLM } from './N8nLLM';
+import { omit } from 'lodash';
+import { N8nBinkAgent } from './N8nBinkAgent';
+import { DynamicStructuredTool } from '@langchain/core/tools';
+import { deBridgeProvider } from '@binkai/debridge-provider';
+import { Connection } from '@solana/web3.js';
+import { BridgePlugin } from '@binkai/bridge-plugin';
+// import { TransferPlugin } from '@binkai/transfer-plugin';
+import { BirdeyeProvider } from '@binkai/birdeye-provider';
+import { SYSTEM_MESSAGE } from './prompt';
 
 function getInputs(
 	agent:
@@ -94,37 +100,6 @@ function getInputs(
 
 	let specialInputs: SpecialInput[] = [];
 
-	// if (agent === 'conversationalAgent') {
-	// 	specialInputs = [
-	// 		{
-	// 			type: 'ai_languageModel' as NodeConnectionType,
-	// 			filter: {
-	// 				nodes: [
-	// 					'@n8n/n8n-nodes-langchain.lmChatAnthropic',
-	// 					'@n8n/n8n-nodes-langchain.lmChatAwsBedrock',
-	// 					'@n8n/n8n-nodes-langchain.lmChatGroq',
-	// 					'@n8n/n8n-nodes-langchain.lmChatOllama',
-	// 					'@n8n/n8n-nodes-langchain.lmChatOpenAi',
-	// 					'@n8n/n8n-nodes-langchain.lmChatGoogleGemini',
-	// 					'@n8n/n8n-nodes-langchain.lmChatGoogleVertex',
-	// 					'@n8n/n8n-nodes-langchain.lmChatMistralCloud',
-	// 					'@n8n/n8n-nodes-langchain.lmChatAzureOpenAi',
-	// 					'@n8n/n8n-nodes-langchain.lmChatDeepSeek',
-	// 					'@n8n/n8n-nodes-langchain.lmChatOpenRouter',
-	// 					'@n8n/n8n-nodes-langchain.lmChatXAiGrok',
-	// 				],
-	// 			},
-	// 		},
-	// 		{
-	// 			type: 'ai_memory' as NodeConnectionType,
-	// 		},
-	// 		{
-	// 			type: 'ai_tool' as NodeConnectionType,
-	// 		},
-	// 		{
-	// 			type: 'ai_outputParser' as NodeConnectionType,
-	// 		},
-	// 	];
 	if (agent === 'toolsAgent') {
 		specialInputs = [
 			{
@@ -158,11 +133,13 @@ function getInputs(
 			},
 		];
 	}
-	
+
 	if (hasOutputParser === false) {
 		specialInputs = specialInputs.filter((input) => input.type !== 'ai_outputParser');
 	}
-	return ['main', ...getInputData(specialInputs)] as Array<NodeConnectionType | INodeInputConfiguration>;
+	return ['main', ...getInputData(specialInputs)] as Array<
+		NodeConnectionType | INodeInputConfiguration
+	>;
 }
 
 const agentTypeProperty: INodeProperties = {
@@ -172,26 +149,15 @@ const agentTypeProperty: INodeProperties = {
 	noDataExpression: true,
 	// eslint-disable-next-line n8n-nodes-base/node-param-options-type-unsorted-items
 	options: [
-		// {
-		// 	name: 'Conversational Agent',
-		// 	value: 'conversationalAgent',
-		// 	description:
-		// 		'Describes tools in the system prompt and parses JSON responses for tool calls. More flexible but potentially less reliable than the Tools Agent. Suitable for simpler interactions or with models not supporting structured schemas.',
-		// },
 		{
 			name: 'Tools Agent',
 			value: 'toolsAgent',
 			description:
 				'Utilizes structured tool schemas for precise and reliable tool selection and execution. Recommended for complex tasks requiring accurate and consistent tool usage, but only usable with models that support tool calling.',
 		},
-		
-
-	
 	],
 	default: 'toolsAgent',
 };
-
-
 
 
 export const promptTypeOptions: INodeProperties = {
@@ -212,14 +178,7 @@ export const promptTypeOptions: INodeProperties = {
 		},
 	],
 	default: 'auto',
-};
-
-
-
-export const SYSTEM_MESSAGE = `Assistant is a large language model trained by OpenAI.
-Assistant is designed to be able to assist with a wide range of tasks, from answering simple questions to providing in-depth explanations and discussions on a wide range of topics. As a language model, Assistant is able to generate human-like text based on the input it receives, allowing it to engage in natural-sounding conversations and provide responses that are coherent and relevant to the topic at hand.
-Assistant is constantly learning and improving, and its capabilities are constantly evolving. It is able to process and understand large amounts of text, and can use this knowledge to provide accurate and informative responses to a wide range of questions. Additionally, Assistant is able to generate its own text based on the input it receives, allowing it to engage in discussions and provide explanations and descriptions on a wide range of topics.
-Overall, Assistant is a powerful system that can help with a wide range of tasks and provide valuable insights and information on a wide range of topics. Whether you need help with a specific question or just want to have a conversation about a particular topic, Assistant is here to assist.`;
+}
 
 export const toolsAgentProperties: INodeProperties[] = [
 	{
@@ -238,7 +197,7 @@ export const toolsAgentProperties: INodeProperties[] = [
 				displayName: 'System Message',
 				name: 'systemMessage',
 				type: 'string',
-				default: SYSTEM_MESSAGE,
+				default: SYSTEM_MESSAGE,	
 				description: 'The message that will be sent to the agent before the conversation starts',
 				typeOptions: {
 					rows: 6,
@@ -272,7 +231,7 @@ export const toolsAgentProperties: INodeProperties[] = [
 
 export class BinkAINode implements INodeType {
 	description: INodeTypeDescription = {
-		displayName: 'Bink AI Agent',
+		displayName: 'Bink AI Agent V2',
 		name: 'binkAgentNode',
 		group: ['transform'],
 		version: 1,
@@ -282,14 +241,14 @@ export class BinkAINode implements INodeType {
 		defaults: {
 			name: 'Bink AI Agent',
 		},
-        inputs: `={{
+		inputs: `={{
 			((agent, hasOutputParser) => {
 				${getInputs.toString()};
 				return getInputs(agent, hasOutputParser)
 			})($parameter.agent, $parameter.hasOutputParser === undefined || $parameter.hasOutputParser === true)
 		}}`,
-        outputs: [NodeConnectionType.Main],
-		
+		outputs: [NodeConnectionType.Main],
+
 		properties: [
 			{
 				displayName:
@@ -303,7 +262,7 @@ export class BinkAINode implements INodeType {
 					},
 				},
 			},
-			
+
 			{
 				displayName: 'Require Specific Output Format',
 				name: 'hasOutputParser',
@@ -323,20 +282,18 @@ export class BinkAINode implements INodeType {
 					},
 				},
 			},
-			{
-				displayName: 'Plugins',
-				name: 'plugins',
-				type: 'multiOptions',
-				default: 'auto',
-				options: pluginsTypeProperties.options,
-			},
+			// {
+			// 	displayName: 'Plugins',
+			// 	name: 'plugins',
+			// 	type: 'multiOptions',
+			// 	default: 'auto',
+			// 	options: pluginsTypeProperties.options,
+			// },
 			...[promptTypeOptions],
-			...[textFromPreviousNode],
+			// ...[textFromPreviousNode],
 			...[textInput],
 			...[agentTypeProperty],
 			...toolsAgentProperties,
-			// ...conversationalAgentProperties,
-		
 		],
 		credentials: [
 			{
@@ -346,238 +303,205 @@ export class BinkAINode implements INodeType {
 		],
 	};
 
-		
-
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
-		const selectedPlugins = this.getNodeParameter('plugins', 0, 'auto') as string[];
-		const model = await this.getInputConnectionData(NodeConnectionType.AiLanguageModel, 0);
-		const outputParser = await getOptionalOutputParser(this);
-		const tools = await getTools(this, outputParser)
-
-		const memory = (await this.getInputConnectionData(NodeConnectionType.AiMemory, 0)) as
-			| BaseChatMemory
-			| undefined;
-		
-		const credentials = await this.getCredentials('binkaiCredentialsApi');
-		const mnemonic = credentials.walletMnemonic as string;
-		const BIRDEYE_API_KEY = credentials.birdeyeApiKey as string || '';
-		const ALCHEMY_API_KEY = credentials.alchemyApiKey as string || '';
-
-			
-		// TODO: initialize all BinkAI plugins
-		const BSC_RPC_URL = 'https://binance.llamarpc.com';
-		const ETHEREUM_RPC_URL = 'https://eth.llamarpc.com';
-		const SOLANA_RPC_URL = 'https://api.mainnet-beta.solana.com';
-		
-		const networks: NetworksConfig['networks'] = {
-			bnb: {
-				type: 'evm',
-				config: {
-					chainId: 56,
-					rpcUrl: BSC_RPC_URL,
-					name: 'BNB Chain',
-					nativeCurrency: {
-						name: 'BNB',
-						symbol: 'BNB',
-						decimals: 18,
-					},
-				},
-			},
-			ethereum: {
-				type: 'evm',
-				config: {
-					chainId: 1,
-					rpcUrl: ETHEREUM_RPC_URL,
-					name: 'Ethereum',
-					nativeCurrency: {
-						name: 'Ether',
-						symbol: 'ETH',
-						decimals: 18,
-					},
-				},
-			},
-			[NetworkName.SOLANA]: {
-				type: 'solana',
-				config: {
-					rpcUrl: SOLANA_RPC_URL,
-					name: 'Solana',
-					nativeCurrency: {
-						name: 'Solana',
-						symbol: 'SOL',
-						decimals: 9,
-					},
-				},
-			},
-		};
-
-		const network = new Network({ networks });
-		const wallet = new Wallet(
-			{
-				seedPhrase: mnemonic || 'test test test test test test test test test test test test',
-				index: 0,
-			},
-			network,
-		);
-
-	
-		const n8nLLM = new N8NModel(model)
-		const agent = new Agent(
-			n8nLLM,
-			{
-				temperature: 0,
-			},
-			wallet,
-			networks,
-		);
-
-		const swapPlugin = new SwapPlugin();
-		const bridgePlugin = new BridgePlugin();
-		const tokenPlugin = new TokenPlugin();
-		const stakingPlugin = new StakingPlugin();
-		const walletPlugin = new WalletPlugin();
-		const bnbProvider = new BnbProvider({ rpcUrl: BSC_RPC_URL });
-		const solanaProvider = new SolanaProvider({ rpcUrl: SOLANA_RPC_URL });
-		const bscProvider = new JsonRpcProvider(BSC_RPC_URL);
-		const thena = new ThenaProvider(bscProvider, 56);
-		const pancakeswap = new PancakeSwapProvider(bscProvider, 56);
-		const fourMeme = new FourMemeProvider(bscProvider, 56);
-		const venus = new VenusProvider(bscProvider, 56);
-		const oku = new OkuProvider(bscProvider, 56);
-		const kyber = new KyberProvider(bscProvider, 56);
-		const jupiter = new JupiterProvider(new Connection(SOLANA_RPC_URL));
-
-		const birdeyeApi = new BirdeyeProvider({
-			apiKey: BIRDEYE_API_KEY,
-		});
-
-		const alchemyApi = new AlchemyProvider({
-			apiKey: ALCHEMY_API_KEY,
-		});
-
-		const debridge = new deBridgeProvider(
-			[bscProvider, new Connection(SOLANA_RPC_URL)],
-			56,
-			7565164,
-		);
-
-		await walletPlugin.initialize({
-			defaultChain: 'bnb',
-			providers: [bnbProvider, birdeyeApi, alchemyApi, solanaProvider],
-			supportedChains: ['bnb', 'solana', 'ethereum'],
-		});
-
-		await swapPlugin.initialize({
-			defaultSlippage: 0.5,
-			defaultChain: 'bnb',
-			providers: [pancakeswap, fourMeme, thena, oku, kyber, jupiter],
-			supportedChains: ['bnb', 'solana'],
-		});
-
-		await tokenPlugin.initialize({
-			defaultChain: 'bnb',
-			providers: [birdeyeApi],
-			supportedChains: ['solana', 'bnb', 'ethereum'],
-		});
-
-		await stakingPlugin.initialize({
-			defaultSlippage: 0.5,
-			defaultChain: 'bnb',
-			providers: [venus],
-			supportedChains: ['bnb', 'ethereum'],
-		});
-
-		await bridgePlugin.initialize({
-			defaultChain: 'bnb',
-			providers: [debridge],
-			supportedChains: ['bnb', 'solana'],
-		});
-
-		
-
-		const pluginMap = {
-			'binkSwap': swapPlugin,
-			'binkWallet': walletPlugin,
-			'binkToken': tokenPlugin,
-			'binkStaking': stakingPlugin,
-			'binkBridge': bridgePlugin
-		};
-		
-		await Promise.all(
-			selectedPlugins
-				.filter(plugin => plugin in pluginMap)
-				.map(plugin => agent.registerPlugin(pluginMap[plugin]))
-		);
-		
-		this.logger.debug('Executing Conversational Agent');
-
-		if (!isChatInstance(model)) {
-			throw new NodeOperationError(this.getNode(), 'Conversational Agent requires Chat Model');
-		}
-
-
-		
-
-
-
-		// TODO: Make it possible in the future to use values for other items than just 0
-		// const options = this.getNodeParameter('options', 0, {}) as {
-		// 	systemMessage?: string;
-		// 	humanMessage?: string;
-		// 	maxIterations?: number;
-		// 	returnIntermediateSteps?: boolean;
-		// };
-
 		const returnData: INodeExecutionData[] = [];
-
-		let prompt: PromptTemplate | undefined;
-		if (outputParser) {
-			const formatInstructions = outputParser.getFormatInstructions();
-
-			prompt = new PromptTemplate({
-				template: '{input}\n{formatInstructions}',
-				inputVariables: ['input'],
-				partialVariables: { formatInstructions },
-			});
-		}
-
 		const items = this.getInputData();
+		const outputParser = await getOptionalOutputParser(this) as N8nOutputParser;
+		const tools = await getTools(this, outputParser) as DynamicStructuredTool[];
+		console.log('🚀 ~ BinkAINode ~ call ~ tools:', tools);
+
+		// Define RPC URLs once at the beginning
+		const RPC_URLS = {
+			BNB: 'https://bsc-dataseed1.binance.org',
+			ETH: 'https://eth.llamarpc.com',
+			SOL: 'https://api.mainnet-beta.solana.com'
+		};
+
 		for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
 			try {
-				let input;
+				const llm = new N8nLLM(await getChatModel(this));
+				const memory = await getOptionalMemory(this) as BaseChatMemory;
+				
+				const networks: NetworksConfig['networks'] = {
+					bnb: {
+						type: 'evm' as NetworkType,
+						config: {
+							chainId: 56,
+							rpcUrl: RPC_URLS.BNB,
+							name: 'BNB Chain',
+							nativeCurrency: {
+								name: 'BNB',
+								symbol: 'BNB',
+								decimals: 18,
+							},
+						},
+					},
+					ethereum: {
+						type: 'evm' as NetworkType,
+						config: {
+							chainId: 1,
+							rpcUrl: RPC_URLS.ETH,
+							name: 'Ethereum',
+							nativeCurrency: {
+								name: 'Ether',
+								symbol: 'ETH',
+								decimals: 18,
+							},
+						},
+					},
+					solana: {
+						type: 'solana' as NetworkType,
+						config: {
+						  rpcUrl: RPC_URLS.SOL,
+						  name: 'Solana',
+						  nativeCurrency: {
+							name: 'Solana',
+							symbol: 'SOL',
+							decimals: 9,
+						  },
+						},
+					},
+				};
 
-			
-				input = getPromptInputByType({
+				console.log('🚀 ~ BinkAINode ~ execute ~ networks:', networks);
+				const network = new Network({ networks });
+				const credentials = await this.getCredentials('binkaiCredentialsApi');
+				const wallet = new Wallet(
+					{
+						seedPhrase:
+							credentials.walletMnemonic as string ||
+							'test test test test test test test test test test test test',
+						index: 0,
+					},
+					network,
+				);
+
+				const binkAgent = new N8nBinkAgent(
+					llm,
+					memory,
+					outputParser,
+					{
+						temperature: 0.5,
+						systemPrompt: SYSTEM_MESSAGE,	
+					},
+					wallet,
+					networks,
+				);
+
+				const birdeyeApiKey = credentials.birdeyeApiKey as string;
+				const birdeyeProvider = new BirdeyeProvider({
+					apiKey: birdeyeApiKey,
+				});
+				const alchemyApiKey = credentials.alchemyApiKey as string;
+				const alchemyProvider = new AlchemyProvider({
+					apiKey: alchemyApiKey,
+				});
+
+				for (const tool of tools) {
+					try {
+						if (tool.name === 'swap_tool') {
+							const provider = new ethers.JsonRpcProvider(RPC_URLS.BNB);
+							const kyber = new KyberProvider(provider, 56);
+							const jupiter = new JupiterProvider(new Connection(RPC_URLS.SOL));
+							const swapPlugin = new SwapPlugin();
+							await swapPlugin.initialize({
+								defaultSlippage: 0.5,
+								defaultChain: 'bnb',
+								providers: [kyber, jupiter],
+								supportedChains: ['bnb', 'ethereum', 'solana'], // These will be intersected with agent's networks
+							});
+							await binkAgent.registerPlugin(swapPlugin);
+						}
+						
+						if (tool.name === 'bridge_tool') {
+							const bscProvider = new ethers.JsonRpcProvider(RPC_URLS.BNB);
+							const solanaProvider = new Connection(RPC_URLS.SOL);
+							const debridge = new deBridgeProvider([bscProvider, solanaProvider], 56, 7565164);
+							const bridgePlugin = new BridgePlugin();
+							await bridgePlugin.initialize({
+								supportedChains: ['bnb', 'ethereum', 'solana'],
+								providers: [debridge],
+							});
+							await binkAgent.registerPlugin(bridgePlugin);
+						}
+
+						if (tool.name === 'token_tool') {
+							const tokenPlugin = new TokenPlugin();
+							await tokenPlugin.initialize({
+								defaultChain: 'bnb',
+								providers: [birdeyeProvider, alchemyProvider],
+								supportedChains: ['solana', 'bnb', 'ethereum'],
+							});
+							await binkAgent.registerPlugin(tokenPlugin);
+						}
+
+						if (tool.name === 'wallet_tool') {
+							const walletPlugin = new WalletPlugin();
+							await walletPlugin.initialize({
+								defaultChain: 'bnb',
+								providers: [birdeyeProvider, alchemyProvider],
+								supportedChains: ['bnb', 'solana', 'ethereum'],
+							});
+							await binkAgent.registerPlugin(walletPlugin);
+						}
+						
+						
+						// Other tool handling sections are commented out
+					} catch (error) {
+						console.log('🚀 ~ BinkAINode ~ tool initialization error:', error);
+					}
+				}
+
+				const input = getPromptInputByType({
 					ctx: this,
 					i: itemIndex,
 					inputKey: 'text',
 					promptTypeKey: 'promptType',
 				});
-
-				if (input === undefined) {
-					throw new NodeOperationError(this.getNode(), "The 'text' parameter is empty.");
-				}
-
-				if (prompt) {
-					input = (await prompt.invoke({ input, memory })).value;
-				}
-
-	
-
-				const response = await agent.execute(input);
-
-				if (outputParser) {
-					response.output = await extractParsedOutput(this, outputParser, response.output as string);
-				}
-
-				returnData.push({ json: response });
 				
-				logger.enable(); // optional
+				if (input === undefined) {
+					throw new NodeOperationError(this.getNode(), 'The "text" parameter is empty.');
+				}
 
+				console.log('🚀 ~ BinkAINode ~ execute ~ input:', input);
+
+				const response = await binkAgent.execute({
+					input: input,
+				});
+
+				if (memory && outputParser) {
+					const parsedOutput = jsonParse<{ output: Record<string, unknown> }>(
+						response.output as string,
+					);
+					response.output = parsedOutput?.output ?? parsedOutput;
+				}
+
+				// Omit internal keys before returning the result.
+				const itemResult = {
+					json: omit(
+						response,
+						'system_message',
+						'formatting_instructions',
+						'input',
+						'chat_history',
+						'agent_scratchpad',
+					),
+				};
+
+				returnData.push(itemResult);
 			} catch (error) {
-				throw new Error(`Error executing BinkAI node: ${error.message}`);
+				console.log('🚀 ~ BinkAINode ~ execute ~ error:', error);
+				if (this.continueOnFail()) {
+					returnData.push({
+						json: { error: error.message || 'An error occurred' },
+						pairedItem: { item: itemIndex },
+					});
+					continue;
+				}
+				throw error;
 			}
 		}
 		
-		return [returnData]; // Return after processing all items
+		return [returnData];
 	}
 }
