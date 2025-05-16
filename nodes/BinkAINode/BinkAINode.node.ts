@@ -12,7 +12,7 @@ import {
 } from 'n8n-workflow';
 import { conversationalAgentProperties, pluginsTypeProperties } from './description';
 import { textInput, textFromPreviousNode } from '../../utils/descriptions';
-import { getOptionalOutputParser } from '../../utils/output_parsers/N8nOutputParser';
+import { getOptionalOutputParser, N8nOutputParser } from '../../utils/output_parsers/N8nOutputParser';
 import { isChatInstance, getPromptInputByType, getConnectedTools } from '../../utils/helpers';
 import { checkForStructuredTools, extractParsedOutput } from '../../utils/utils';
 import {
@@ -34,6 +34,7 @@ import {
 	NetworkName,
 	logger,
 	OpenAIModel,
+	NetworkType,
 } from '@binkai/core';
 import { SwapPlugin } from '@binkai/swap-plugin';
 import { TokenPlugin } from '@binkai/token-plugin';
@@ -54,10 +55,12 @@ import { deBridgeProvider } from '@binkai/debridge-provider';
 import { BirdeyeProvider } from '@binkai/birdeye-provider';
 import { AlchemyProvider } from '@binkai/alchemy-provider';
 import { PromptTemplate } from '@langchain/core/prompts';
-import { N8NModel } from './N8NModel';
+import { N8nLLM } from './N8nLLM';
 import { AgentExecutor, createToolCallingAgent } from 'langchain/agents';
 import { RunnableSequence } from '@langchain/core/runnables';
 import { omit } from 'lodash';
+import { n8nBinkAgent } from './agentBink';
+import { DynamicStructuredTool } from '@langchain/core/tools';
 
 function getInputs(
 	agent:
@@ -175,6 +178,10 @@ const agentTypeProperty: INodeProperties = {
 	default: 'toolsAgent',
 };
 
+
+export const SYSTEM_MESSAGE = `You are a BINK AI agent. You are able to perform bridge and get token information on multiple chains. If you do not have the token address, you can use the symbol to get the token information before performing a bridge.`;
+
+
 export const promptTypeOptions: INodeProperties = {
 	displayName: 'Source for Prompt (User Message)',
 	name: 'promptType',
@@ -192,13 +199,8 @@ export const promptTypeOptions: INodeProperties = {
 			description: 'Use an expression to reference data in previous nodes or enter static text',
 		},
 	],
-	default: 'auto',
-};
-
-export const SYSTEM_MESSAGE = `Assistant is a large language model trained by OpenAI.
-Assistant is designed to be able to assist with a wide range of tasks, from answering simple questions to providing in-depth explanations and discussions on a wide range of topics. As a language model, Assistant is able to generate human-like text based on the input it receives, allowing it to engage in natural-sounding conversations and provide responses that are coherent and relevant to the topic at hand.
-Assistant is constantly learning and improving, and its capabilities are constantly evolving. It is able to process and understand large amounts of text, and can use this knowledge to provide accurate and informative responses to a wide range of questions. Additionally, Assistant is able to generate its own text based on the input it receives, allowing it to engage in discussions and provide explanations and descriptions on a wide range of topics.
-Overall, Assistant is a powerful system that can help with a wide range of tasks and provide valuable insights and information on a wide range of topics. Whether you need help with a specific question or just want to have a conversation about a particular topic, Assistant is here to assist.`;
+	default: SYSTEM_MESSAGE,
+}
 
 export const toolsAgentProperties: INodeProperties[] = [
 	{
@@ -328,8 +330,8 @@ export class BinkAINode implements INodeType {
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 		const returnData: INodeExecutionData[] = [];
 		const items = this.getInputData();
-		const outputParser = await getOptionalOutputParser(this);
-		const tools = await getTools(this, outputParser);
+		const outputParser = await getOptionalOutputParser(this) as N8nOutputParser;
+		const tools = await getTools(this, outputParser) as DynamicStructuredTool[];
 		console.log('🚀 ~ BinkAINode ~ execute ~ tools:', tools);
 
 		if (tools.includes('binkSwap' as any)) {
@@ -360,10 +362,67 @@ export class BinkAINode implements INodeType {
 			// TODO: Implement binkAlchemy
 		}
 
+		const BNB_RPC = 'https://bsc-dataseed1.binance.org';
+		const ETH_RPC = 'https://eth.llamarpc.com';
+
+		const networks: NetworksConfig['networks'] = {
+			bnb: {
+			  type: 'evm' as NetworkType,
+			  config: {
+				chainId: 56,
+				rpcUrl: BNB_RPC,
+				name: 'BNB Chain',
+				nativeCurrency: {
+				  name: 'BNB',
+				  symbol: 'BNB',
+				  decimals: 18,
+				},
+			  },
+			},
+			ethereum: {
+			  type: 'evm' as NetworkType,
+			  config: {
+				chainId: 1,
+				rpcUrl: ETH_RPC,
+				name: 'Ethereum',
+				nativeCurrency: {
+				  name: 'Ether',
+				  symbol: 'ETH',
+				  decimals: 18,
+				},
+			  },
+			},
+		};
+		const network = new Network({ networks });
+		const credentials = await this.getCredentials('binkaiCredentialsApi');
+		const wallet = new Wallet(
+			{
+			  seedPhrase:
+				credentials.walletMnemonic as string ||
+				'test test test test test test test test test test test test',
+			  index: 0,
+			},
+			network,
+		);
+
 		for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
 			try {
-				const model = await getChatModel(this);
-				const memory = await getOptionalMemory(this);
+				const llm = new N8nLLM(await getChatModel(this));
+				const memory = await getOptionalMemory(this) as BaseChatMemory;
+
+				const binkAgent = new n8nBinkAgent(
+					llm,
+					memory,
+					outputParser,
+					tools,
+					{
+						temperature: 0.5,
+						systemPrompt: SYSTEM_MESSAGE,
+					},
+					wallet,
+					networks,
+				);
+				
 
 				const input = getPromptInputByType({
 					ctx: this,
@@ -375,51 +434,34 @@ export class BinkAINode implements INodeType {
 					throw new NodeOperationError(this.getNode(), 'The “text” parameter is empty.');
 				}
 
-				const options = this.getNodeParameter('options', itemIndex, {}) as {
-					systemMessage?: string;
-					maxIterations?: number;
-					returnIntermediateSteps?: boolean;
-					passthroughBinaryImages?: boolean;
-				};
+				// const options = this.getNodeParameter('options', itemIndex, {}) as {
+				// 	systemMessage?: string;
+				// 	maxIterations?: number;
+				// 	returnIntermediateSteps?: boolean;
+				// 	passthroughBinaryImages?: boolean;
+				// };
 
 				// Prepare the prompt messages and prompt template.
-				const messages = await prepareMessages(this, itemIndex, {
-					systemMessage: options.systemMessage,
-					passthroughBinaryImages: options.passthroughBinaryImages ?? true,
-					outputParser,
-				});
-				const prompt = preparePrompt(messages);
-
-				// Create the base agent that calls tools.
-				const agent = createToolCallingAgent({
-					llm: model,
-					tools,
-					prompt,
-				});
-				agent.streamRunnable = false;
-
-				const runnableAgent = RunnableSequence.from([
-					agent,
-					getAgentStepsParser(outputParser, memory),
-					fixEmptyContentMessage,
-				]);
-				const executor = AgentExecutor.fromAgentAndTools({
-					agent: runnableAgent,
-					memory,
-					tools,
-					returnIntermediateSteps: options.returnIntermediateSteps === true,
-					maxIterations: options.maxIterations ?? 10,
+				// const messages = await prepareMessages(this, itemIndex, {
+				// 	systemMessage: options.systemMessage,
+				// 	passthroughBinaryImages: options.passthroughBinaryImages ?? true,
+				// 	outputParser,
+				// });
+				// const prompt = preparePrompt(messages);
+				const response = await binkAgent.execute({
+					input: input,
 				});
 
-				const response = await executor.invoke(
-					{
-						input,
-						system_message: options.systemMessage ?? SYSTEM_MESSAGE,
-						formatting_instructions:
-							'IMPORTANT: For your response to user, you MUST use the `format_final_json_response` tool with your complete answer formatted according to the required schema. Do not attempt to format the JSON manually - always use this tool. Your response will be rejected if it is not properly formatted through this tool. Only use this tool once you are ready to provide your final answer.',
-					},
-					{ signal: this.getExecutionCancelSignal() },
-				);
+
+				// const response = await agent.invoke(
+				// 	{
+				// 		input,
+				// 		system_message: options.systemMessage ?? SYSTEM_MESSAGE,
+				// 		formatting_instructions:
+				// 			'IMPORTANT: For your response to user, you MUST use the `format_final_json_response` tool with your complete answer formatted according to the required schema. Do not attempt to format the JSON manually - always use this tool. Your response will be rejected if it is not properly formatted through this tool. Only use this tool once you are ready to provide your final answer.',
+				// 	},
+				// 	{ signal: this.getExecutionCancelSignal() },
+				// );
 
 				// If memory and outputParser are connected, parse the output.
 				if (memory && outputParser) {
