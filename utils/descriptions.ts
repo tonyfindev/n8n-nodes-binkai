@@ -100,21 +100,21 @@ export const textInput: INodeProperties = {
 	name: 'text',
 	type: 'string',
 	required: true,
-	default: '',
+	default: '={{ $json.chatInput }}',
 	placeholder: 'e.g. Hello, how can you help me?',
 	typeOptions: {
 		rows: 2,
 	},
 };
 
-export const textFromPreviousNode: INodeProperties = {
-	displayName: 'Prompt (User Message)',
-	name: 'text',
-	type: 'string',
-	required: true,
-	default: '={{ $json.chatInput }}',
-	typeOptions: {
-		rows: 2,
-	},
-	disabledOptions: { show: { promptType: ['auto'] } },
-};
+// export const textFromPreviousNode: INodeProperties = {
+// 	displayName: 'Prompt (User Message)',
+// 	name: 'text',
+// 	type: 'string',
+// 	required: true,
+// 	default: '={{ $json.chatInput }}',
+// 	typeOptions: {
+// 		rows: 2,
+// 	},
+// 	disabledOptions: { show: { promptType: ['auto'] } },
+// };
