@@ -14,6 +14,7 @@ import { textInput, textFromPreviousNode } from '../../utils/descriptions';
 import { getOptionalOutputParser } from '../../utils/output_parsers/N8nOutputParser';
 import { isChatInstance, getPromptInputByType, getConnectedTools } from '../../utils/helpers';
 import { checkForStructuredTools, extractParsedOutput } from '../../utils/utils';
+import { getTools } from '../../utils/common';
 
 import type { BaseChatMemory } from '@langchain/community/memory/chat_memory';
 import { Agent, Wallet, Network, NetworksConfig, NetworkName, logger, OpenAIModel } from '@binkai/core';
@@ -59,7 +60,7 @@ function getInputs(
 		const displayNames: { [key: string]: string } = {
 			ai_languageModel: 'Model',
 			ai_memory: 'Memory',
-			// ai_tool: 'Tool',
+			ai_tool: 'Tool',
 			ai_outputParser: 'Output Parser',
 		};
 
@@ -93,53 +94,21 @@ function getInputs(
 
 	let specialInputs: SpecialInput[] = [];
 
-	if (agent === 'conversationalAgent') {
-		specialInputs = [
-			{
-				type: 'ai_languageModel' as NodeConnectionType,
-				filter: {
-					nodes: [
-						'@n8n/n8n-nodes-langchain.lmChatAnthropic',
-						'@n8n/n8n-nodes-langchain.lmChatAwsBedrock',
-						'@n8n/n8n-nodes-langchain.lmChatGroq',
-						'@n8n/n8n-nodes-langchain.lmChatOllama',
-						'@n8n/n8n-nodes-langchain.lmChatOpenAi',
-						'@n8n/n8n-nodes-langchain.lmChatGoogleGemini',
-						'@n8n/n8n-nodes-langchain.lmChatGoogleVertex',
-						'@n8n/n8n-nodes-langchain.lmChatMistralCloud',
-						'@n8n/n8n-nodes-langchain.lmChatAzureOpenAi',
-						'@n8n/n8n-nodes-langchain.lmChatDeepSeek',
-						'@n8n/n8n-nodes-langchain.lmChatOpenRouter',
-						'@n8n/n8n-nodes-langchain.lmChatXAiGrok',
-					],
-				},
-			},
-			{
-				type: 'ai_memory' as NodeConnectionType,
-			},
-			// {
-			// 	type: 'ai_tool' as NodeConnectionType,
-			// },
-			{
-				type: 'ai_outputParser' as NodeConnectionType,
-			},
-		];
-	}
-	// } else if (agent === 'toolsAgent') {
+	// if (agent === 'conversationalAgent') {
 	// 	specialInputs = [
 	// 		{
 	// 			type: 'ai_languageModel' as NodeConnectionType,
 	// 			filter: {
 	// 				nodes: [
 	// 					'@n8n/n8n-nodes-langchain.lmChatAnthropic',
-	// 					'@n8n/n8n-nodes-langchain.lmChatAzureOpenAi',
 	// 					'@n8n/n8n-nodes-langchain.lmChatAwsBedrock',
-	// 					'@n8n/n8n-nodes-langchain.lmChatMistralCloud',
+	// 					'@n8n/n8n-nodes-langchain.lmChatGroq',
 	// 					'@n8n/n8n-nodes-langchain.lmChatOllama',
 	// 					'@n8n/n8n-nodes-langchain.lmChatOpenAi',
-	// 					'@n8n/n8n-nodes-langchain.lmChatGroq',
-	// 					'@n8n/n8n-nodes-langchain.lmChatGoogleVertex',
 	// 					'@n8n/n8n-nodes-langchain.lmChatGoogleGemini',
+	// 					'@n8n/n8n-nodes-langchain.lmChatGoogleVertex',
+	// 					'@n8n/n8n-nodes-langchain.lmChatMistralCloud',
+	// 					'@n8n/n8n-nodes-langchain.lmChatAzureOpenAi',
 	// 					'@n8n/n8n-nodes-langchain.lmChatDeepSeek',
 	// 					'@n8n/n8n-nodes-langchain.lmChatOpenRouter',
 	// 					'@n8n/n8n-nodes-langchain.lmChatXAiGrok',
@@ -149,14 +118,46 @@ function getInputs(
 	// 		{
 	// 			type: 'ai_memory' as NodeConnectionType,
 	// 		},
-	// 		// {
-	// 		// 	type: 'ai_tool' as NodeConnectionType,
-	// 		// 	required: true,
-	// 		// },
+	// 		{
+	// 			type: 'ai_tool' as NodeConnectionType,
+	// 		},
 	// 		{
 	// 			type: 'ai_outputParser' as NodeConnectionType,
 	// 		},
 	// 	];
+	if (agent === 'toolsAgent') {
+		specialInputs = [
+			{
+				type: 'ai_languageModel' as NodeConnectionType,
+				filter: {
+					nodes: [
+						'@n8n/n8n-nodes-langchain.lmChatAnthropic',
+						'@n8n/n8n-nodes-langchain.lmChatAzureOpenAi',
+						'@n8n/n8n-nodes-langchain.lmChatAwsBedrock',
+						'@n8n/n8n-nodes-langchain.lmChatMistralCloud',
+						'@n8n/n8n-nodes-langchain.lmChatOllama',
+						'@n8n/n8n-nodes-langchain.lmChatOpenAi',
+						'@n8n/n8n-nodes-langchain.lmChatGroq',
+						'@n8n/n8n-nodes-langchain.lmChatGoogleVertex',
+						'@n8n/n8n-nodes-langchain.lmChatGoogleGemini',
+						'@n8n/n8n-nodes-langchain.lmChatDeepSeek',
+						'@n8n/n8n-nodes-langchain.lmChatOpenRouter',
+						'@n8n/n8n-nodes-langchain.lmChatXAiGrok',
+					],
+				},
+			},
+			{
+				type: 'ai_memory' as NodeConnectionType,
+			},
+			{
+				type: 'ai_tool' as NodeConnectionType,
+				required: true,
+			},
+			{
+				type: 'ai_outputParser' as NodeConnectionType,
+			},
+		];
+	}
 	
 	if (hasOutputParser === false) {
 		specialInputs = specialInputs.filter((input) => input.type !== 'ai_outputParser');
@@ -171,40 +172,23 @@ const agentTypeProperty: INodeProperties = {
 	noDataExpression: true,
 	// eslint-disable-next-line n8n-nodes-base/node-param-options-type-unsorted-items
 	options: [
+		// {
+		// 	name: 'Conversational Agent',
+		// 	value: 'conversationalAgent',
+		// 	description:
+		// 		'Describes tools in the system prompt and parses JSON responses for tool calls. More flexible but potentially less reliable than the Tools Agent. Suitable for simpler interactions or with models not supporting structured schemas.',
+		// },
 		{
-			name: 'Conversational Agent',
-			value: 'conversationalAgent',
+			name: 'Tools Agent',
+			value: 'toolsAgent',
 			description:
-				'Describes tools in the system prompt and parses JSON responses for tool calls. More flexible but potentially less reliable than the Tools Agent. Suitable for simpler interactions or with models not supporting structured schemas.',
+				'Utilizes structured tool schemas for precise and reliable tool selection and execution. Recommended for complex tasks requiring accurate and consistent tool usage, but only usable with models that support tool calling.',
 		},
-		// {
-		// 	name: 'Tools Agent',
-		// 	value: 'toolsAgent',
-		// 	description:
-		// 		'Utilizes structured tool schemas for precise and reliable tool selection and execution. Recommended for complex tasks requiring accurate and consistent tool usage, but only usable with models that support tool calling.',
-		// },
 		
-		// {
-		// 	name: 'OpenAI Functions Agent',
-		// 	value: 'openAiFunctionsAgent',
-		// 	description:
-		// 		"Leverages OpenAI's function calling capabilities to precisely select and execute tools. Excellent for tasks requiring structured outputs when working with OpenAI models.",
-		// },
-		// {
-		// 	name: 'Plan and Execute Agent',
-		// 	value: 'planAndExecuteAgent',
-		// 	description:
-		// 		'Creates a high-level plan for complex tasks and then executes each step. Suitable for multi-stage problems or when a strategic approach is needed.',
-		// },
-		// {
-		// 	name: 'ReAct Agent',
-		// 	value: 'reActAgent',
-		// 	description:
-		// 		'Combines reasoning and action in an iterative process. Effective for tasks that require careful analysis and step-by-step problem-solving.',
-		// },
+
 	
 	],
-	default: '',
+	default: 'toolsAgent',
 };
 
 
@@ -233,11 +217,8 @@ export const promptTypeOptions: INodeProperties = {
 
 
 export const SYSTEM_MESSAGE = `Assistant is a large language model trained by OpenAI.
-
 Assistant is designed to be able to assist with a wide range of tasks, from answering simple questions to providing in-depth explanations and discussions on a wide range of topics. As a language model, Assistant is able to generate human-like text based on the input it receives, allowing it to engage in natural-sounding conversations and provide responses that are coherent and relevant to the topic at hand.
-
 Assistant is constantly learning and improving, and its capabilities are constantly evolving. It is able to process and understand large amounts of text, and can use this knowledge to provide accurate and informative responses to a wide range of questions. Additionally, Assistant is able to generate its own text based on the input it receives, allowing it to engage in discussions and provide explanations and descriptions on a wide range of topics.
-
 Overall, Assistant is a powerful system that can help with a wide range of tasks and provide valuable insights and information on a wide range of topics. Whether you need help with a specific question or just want to have a conversation about a particular topic, Assistant is here to assist.`;
 
 export const toolsAgentProperties: INodeProperties[] = [
@@ -318,78 +299,17 @@ export class BinkAINode implements INodeType {
 				default: '',
 				displayOptions: {
 					show: {
-						agent: ['conversationalAgent'],
+						agent: ['toolsAgent'],
 					},
 				},
 			},
-			// Make Conversational Agent the default agent for versions 1.5 and below
-			{
-				...agentTypeProperty,
-				options: agentTypeProperty?.options?.filter(
-					(o) => 'value' in o && o.value !== 'toolsAgent',
-				),
-				displayOptions: { show: { '@version': [{ _cnd: { lte: 1.5 } }] } },
-				default: 'conversationalAgent',
-			},
-	
-			{
-				...promptTypeOptions,
-				displayOptions: {
-					hide: {
-						// '@version': [{ _cnd: { lte: 1.2 } }],
-						agent: ['sqlAgent'],
-					},
-				},
-			},
-			{
-				...textFromPreviousNode,
-				displayOptions: {
-					show: { promptType: ['auto'], '@version': [{ _cnd: { gte: 1.7 } }] },
-					// SQL Agent has data source and credentials parameters so we need to include this input there manually
-					// to preserve the order
-					hide: {
-						agent: ['sqlAgent'],
-					},
-				},
-			},
-			{
-				...textInput,
-				displayOptions: {
-					show: {
-						promptType: ['define'],
-					},
-					hide: {
-						agent: ['sqlAgent'],
-					},
-				},
-			},
-			{
-				displayName: 'For more reliable structured output parsing, consider using the Tools agent',
-				name: 'notice',
-				type: 'notice',
-				default: '',
-				displayOptions: {
-					show: {
-						hasOutputParser: [true],
-						agent: [
-							'conversationalAgent',
-				
-						],
-					},
-				},
-			},
+			
 			{
 				displayName: 'Require Specific Output Format',
 				name: 'hasOutputParser',
 				type: 'boolean',
 				default: false,
 				noDataExpression: true,
-				displayOptions: {
-					hide: {
-						'@version': [{ _cnd: { lte: 1.2 } }],
-						agent: ['sqlAgent'],
-					},
-				},
 			},
 			{
 				displayName: `Connect an <a data-action='openSelectiveNodeCreator' data-action-parameter-connectiontype='${NodeConnectionType.AiOutputParser}'>output parser</a> on the canvas to specify the output format you require`,
@@ -410,9 +330,12 @@ export class BinkAINode implements INodeType {
 				default: 'auto',
 				options: pluginsTypeProperties.options,
 			},
-
-			// ...toolsAgentProperties,
-			...conversationalAgentProperties,
+			...[promptTypeOptions],
+			...[textFromPreviousNode],
+			...[textInput],
+			...[agentTypeProperty],
+			...toolsAgentProperties,
+			// ...conversationalAgentProperties,
 		
 		],
 		credentials: [
@@ -428,7 +351,12 @@ export class BinkAINode implements INodeType {
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 		const selectedPlugins = this.getNodeParameter('plugins', 0, 'auto') as string[];
 		const model = await this.getInputConnectionData(NodeConnectionType.AiLanguageModel, 0);
+		const outputParser = await getOptionalOutputParser(this);
+		const tools = await getTools(this, outputParser)
 
+		const memory = (await this.getInputConnectionData(NodeConnectionType.AiMemory, 0)) as
+			| BaseChatMemory
+			| undefined;
 		
 		const credentials = await this.getCredentials('binkaiCredentialsApi');
 		const mnemonic = credentials.walletMnemonic as string;
@@ -587,16 +515,9 @@ export class BinkAINode implements INodeType {
 		}
 
 
-		const memory = (await this.getInputConnectionData(NodeConnectionType.AiMemory, 0)) as
-			| BaseChatMemory
-			| undefined;
-
-
-		// const tools = await getConnectedTools(this, nodeVersion >= 1.5, true, true);
-		const outputParser = await getOptionalOutputParser(this);
 		
 
-		// await checkForStructuredTools(tools, this.getNode(), 'Conversational Agent');
+
 
 		// TODO: Make it possible in the future to use values for other items than just 0
 		// const options = this.getNodeParameter('options', 0, {}) as {
