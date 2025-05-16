@@ -39,7 +39,8 @@
       "dist/credentials/BinkAICredentialsApi.credentials.js"
     ],
     "nodes": [
-      "dist/nodes/BinkAINode/BinkAINode.node.js"
+      "dist/nodes/BinkAINode/BinkAINode.node.js",
+      "dist/nodes/tools/ToolCalculator/ToolCalculator.node.js"
     ]
   },
   "devDependencies": {
@@ -111,6 +112,7 @@
     "@binkai/wallet-plugin": "^0.3.0-alpha.0",
     "@langchain/community": "^0.3.42",
     "@langchain/core": "^0.3.42",
+    "@langchain/textsplitters": "^0.1.0",
     "@modelcontextprotocol/sdk": "^1.10.2",
     "@solana/web3.js": "^1.98.2",
     "chat_memory": "link:@langchain/community/memory/chat_memory",
@@ -119,6 +121,7 @@
     "langchain": "^0.3.24",
     "lodash": "^4.17.21",
     "memory": "link:@langchain/community/memory",
+    "tmp-promise": "^3.0.3",
     "zod": "^3.24.4"
   }
 }

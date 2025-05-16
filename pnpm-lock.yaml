@@ -86,6 +86,9 @@ importers:
       '@langchain/core':
         specifier: ^0.3.42
         version: 0.3.55(openai@4.98.0(ws@7.5.10(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.24.4))
+      '@langchain/textsplitters':
+        specifier: ^0.1.0
+        version: 0.1.0(@langchain/core@0.3.55(openai@4.98.0(ws@7.5.10(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.24.4)))
       '@modelcontextprotocol/sdk':
         specifier: ^1.10.2
         version: 1.11.1
@@ -110,6 +113,9 @@ importers:
       memory:
         specifier: link:@langchain/community/memory
         version: link:@langchain/community/memory
+      tmp-promise:
+        specifier: ^3.0.3
+        version: 3.0.3
       zod:
         specifier: ^3.24.4
         version: 3.24.4
@@ -14472,14 +14478,12 @@ snapshots:
   tmp-promise@3.0.3:
     dependencies:
       tmp: 0.2.3
-    optional: true
 
   tmp@0.0.33:
     dependencies:
       os-tmpdir: 1.0.2
 
-  tmp@0.2.3:
-    optional: true
+  tmp@0.2.3: {}
 
   to-absolute-glob@2.0.2:
     dependencies:
