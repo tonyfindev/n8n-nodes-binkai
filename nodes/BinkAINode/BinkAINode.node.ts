@@ -36,6 +36,7 @@ import { deBridgeProvider } from '@binkai/debridge-provider';
 import { BirdeyeProvider } from '@binkai/birdeye-provider';
 import { AlchemyProvider } from '@binkai/alchemy-provider';
 import { PromptTemplate } from '@langchain/core/prompts';
+import { N8NModel } from './N8NModel';
 
 function getInputs(
 	agent:
@@ -44,7 +45,6 @@ function getInputs(
 		| 'openAiFunctionsAgent'
 		| 'planAndExecuteAgent'
 		| 'reActAgent',
-		// | 'sqlAgent',
 	hasOutputParser?: boolean,
 ): Array<NodeConnectionType | INodeInputConfiguration> {
 	interface SpecialInput {
@@ -59,7 +59,7 @@ function getInputs(
 		const displayNames: { [key: string]: string } = {
 			ai_languageModel: 'Model',
 			ai_memory: 'Memory',
-			ai_tool: 'Tool',
+			// ai_tool: 'Tool',
 			ai_outputParser: 'Output Parser',
 		};
 
@@ -117,93 +117,47 @@ function getInputs(
 			{
 				type: 'ai_memory' as NodeConnectionType,
 			},
-			{
-				type: 'ai_tool' as NodeConnectionType,
-			},
-			{
-				type: 'ai_outputParser' as NodeConnectionType,
-			},
-		];
-	} else if (agent === 'toolsAgent') {
-		specialInputs = [
-			{
-				type: 'ai_languageModel' as NodeConnectionType,
-				filter: {
-					nodes: [
-						'@n8n/n8n-nodes-langchain.lmChatAnthropic',
-						'@n8n/n8n-nodes-langchain.lmChatAzureOpenAi',
-						'@n8n/n8n-nodes-langchain.lmChatAwsBedrock',
-						'@n8n/n8n-nodes-langchain.lmChatMistralCloud',
-						'@n8n/n8n-nodes-langchain.lmChatOllama',
-						'@n8n/n8n-nodes-langchain.lmChatOpenAi',
-						'@n8n/n8n-nodes-langchain.lmChatGroq',
-						'@n8n/n8n-nodes-langchain.lmChatGoogleVertex',
-						'@n8n/n8n-nodes-langchain.lmChatGoogleGemini',
-						'@n8n/n8n-nodes-langchain.lmChatDeepSeek',
-						'@n8n/n8n-nodes-langchain.lmChatOpenRouter',
-						'@n8n/n8n-nodes-langchain.lmChatXAiGrok',
-					],
-				},
-			},
-			{
-				type: 'ai_memory' as NodeConnectionType,
-			},
-			{
-				type: 'ai_tool' as NodeConnectionType,
-				required: true,
-			},
-			{
-				type: 'ai_outputParser' as NodeConnectionType,
-			},
-		];
-	} else if (agent === 'openAiFunctionsAgent') {
-		specialInputs = [
-			{
-				type: 'ai_languageModel' as NodeConnectionType,
-				filter: {
-					nodes: [
-						'@n8n/n8n-nodes-langchain.lmChatOpenAi',
-						'@n8n/n8n-nodes-langchain.lmChatAzureOpenAi',
-					],
-				},
-			},
-			{
-				type: 'ai_memory' as NodeConnectionType,
-			},
-			{
-				type: 'ai_tool' as NodeConnectionType,
-				required: true,
-			},
-			{
-				type: 'ai_outputParser' as NodeConnectionType,
-			},
-		];
-	} else if (agent === 'reActAgent') {
-		specialInputs = [
-			{
-				type: 'ai_languageModel' as NodeConnectionType,
-			},
-			{
-				type: 'ai_tool' as NodeConnectionType,
-			},
-			{
-				type: 'ai_outputParser' as NodeConnectionType,
-			},
-		];
-	} else if (agent === 'planAndExecuteAgent') {
-		specialInputs = [
-			{
-				type: 'ai_languageModel' as NodeConnectionType,
-			},
-			{
-				type: 'ai_tool' as NodeConnectionType,
-			},
+			// {
+			// 	type: 'ai_tool' as NodeConnectionType,
+			// },
 			{
 				type: 'ai_outputParser' as NodeConnectionType,
 			},
 		];
 	}
-
+	// } else if (agent === 'toolsAgent') {
+	// 	specialInputs = [
+	// 		{
+	// 			type: 'ai_languageModel' as NodeConnectionType,
+	// 			filter: {
+	// 				nodes: [
+	// 					'@n8n/n8n-nodes-langchain.lmChatAnthropic',
+	// 					'@n8n/n8n-nodes-langchain.lmChatAzureOpenAi',
+	// 					'@n8n/n8n-nodes-langchain.lmChatAwsBedrock',
+	// 					'@n8n/n8n-nodes-langchain.lmChatMistralCloud',
+	// 					'@n8n/n8n-nodes-langchain.lmChatOllama',
+	// 					'@n8n/n8n-nodes-langchain.lmChatOpenAi',
+	// 					'@n8n/n8n-nodes-langchain.lmChatGroq',
+	// 					'@n8n/n8n-nodes-langchain.lmChatGoogleVertex',
+	// 					'@n8n/n8n-nodes-langchain.lmChatGoogleGemini',
+	// 					'@n8n/n8n-nodes-langchain.lmChatDeepSeek',
+	// 					'@n8n/n8n-nodes-langchain.lmChatOpenRouter',
+	// 					'@n8n/n8n-nodes-langchain.lmChatXAiGrok',
+	// 				],
+	// 			},
+	// 		},
+	// 		{
+	// 			type: 'ai_memory' as NodeConnectionType,
+	// 		},
+	// 		// {
+	// 		// 	type: 'ai_tool' as NodeConnectionType,
+	// 		// 	required: true,
+	// 		// },
+	// 		{
+	// 			type: 'ai_outputParser' as NodeConnectionType,
+	// 		},
+	// 	];
+	
 	if (hasOutputParser === false) {
 		specialInputs = specialInputs.filter((input) => input.type !== 'ai_outputParser');
 	}
@@ -218,35 +172,36 @@ const agentTypeProperty: INodeProperties = {
 	// eslint-disable-next-line n8n-nodes-base/node-param-options-type-unsorted-items
 	options: [
 		{
-			name: 'Tools Agent',
-			value: 'toolsAgent',
-			description:
-				'Utilizes structured tool schemas for precise and reliable tool selection and execution. Recommended for complex tasks requiring accurate and consistent tool usage, but only usable with models that support tool calling.',
-		},
-		{
 			name: 'Conversational Agent',
 			value: 'conversationalAgent',
 			description:
 				'Describes tools in the system prompt and parses JSON responses for tool calls. More flexible but potentially less reliable than the Tools Agent. Suitable for simpler interactions or with models not supporting structured schemas.',
 		},
-		{
-			name: 'OpenAI Functions Agent',
-			value: 'openAiFunctionsAgent',
-			description:
-				"Leverages OpenAI's function calling capabilities to precisely select and execute tools. Excellent for tasks requiring structured outputs when working with OpenAI models.",
-		},
-		{
-			name: 'Plan and Execute Agent',
-			value: 'planAndExecuteAgent',
-			description:
-				'Creates a high-level plan for complex tasks and then executes each step. Suitable for multi-stage problems or when a strategic approach is needed.',
-		},
-		{
-			name: 'ReAct Agent',
-			value: 'reActAgent',
-			description:
-				'Combines reasoning and action in an iterative process. Effective for tasks that require careful analysis and step-by-step problem-solving.',
-		},
+		// {
+		// 	name: 'Tools Agent',
+		// 	value: 'toolsAgent',
+		// 	description:
+		// 		'Utilizes structured tool schemas for precise and reliable tool selection and execution. Recommended for complex tasks requiring accurate and consistent tool usage, but only usable with models that support tool calling.',
+		// },
+		
+		// {
+		// 	name: 'OpenAI Functions Agent',
+		// 	value: 'openAiFunctionsAgent',
+		// 	description:
+		// 		"Leverages OpenAI's function calling capabilities to precisely select and execute tools. Excellent for tasks requiring structured outputs when working with OpenAI models.",
+		// },
+		// {
+		// 	name: 'Plan and Execute Agent',
+		// 	value: 'planAndExecuteAgent',
+		// 	description:
+		// 		'Creates a high-level plan for complex tasks and then executes each step. Suitable for multi-stage problems or when a strategic approach is needed.',
+		// },
+		// {
+		// 	name: 'ReAct Agent',
+		// 	value: 'reActAgent',
+		// 	description:
+		// 		'Combines reasoning and action in an iterative process. Effective for tasks that require careful analysis and step-by-step problem-solving.',
+		// },
 	
 	],
 	default: '',
@@ -353,12 +308,7 @@ export class BinkAINode implements INodeType {
 			})($parameter.agent, $parameter.hasOutputParser === undefined || $parameter.hasOutputParser === true)
 		}}`,
         outputs: [NodeConnectionType.Main],
-		credentials: [
-			{
-				name: 'binkaiCredentialsApi',
-				required: true,
-			},
-		],
+		
 		properties: [
 			{
 				displayName:
@@ -368,7 +318,7 @@ export class BinkAINode implements INodeType {
 				default: '',
 				displayOptions: {
 					show: {
-						agent: ['conversationalAgent', 'toolsAgent'],
+						agent: ['conversationalAgent'],
 					},
 				},
 			},
@@ -381,19 +331,7 @@ export class BinkAINode implements INodeType {
 				displayOptions: { show: { '@version': [{ _cnd: { lte: 1.5 } }] } },
 				default: 'conversationalAgent',
 			},
-			// Make Tools Agent the default agent for versions 1.6 and 1.7
-			{
-				...agentTypeProperty,
-				displayOptions: { show: { '@version': [{ _cnd: { between: { from: 1.6, to: 1.7 } } }] } },
-				default: 'toolsAgent',
-			},
-			// Make Tools Agent the only agent option for versions 1.8 and above
-			{
-				...agentTypeProperty,
-				type: 'hidden',
-				displayOptions: { show: { '@version': [{ _cnd: { gte: 1.8 } }] } },
-				default: 'toolsAgent',
-			},
+	
 			{
 				...promptTypeOptions,
 				displayOptions: {
@@ -435,9 +373,7 @@ export class BinkAINode implements INodeType {
 						hasOutputParser: [true],
 						agent: [
 							'conversationalAgent',
-							// 'reActAgent',
-							// 'planAndExecuteAgent',
-							// 'openAiFunctionsAgent',
+				
 						],
 					},
 				},
@@ -475,27 +411,36 @@ export class BinkAINode implements INodeType {
 				options: pluginsTypeProperties.options,
 			},
 
-			...toolsAgentProperties,
+			// ...toolsAgentProperties,
 			...conversationalAgentProperties,
-			// ...openAiFunctionsAgentProperties,
-			// ...reActAgentAgentProperties,
-			// ...sqlAgentAgentProperties,
-			// ...planAndExecuteAgentProperties,
+		
+		],
+		credentials: [
+			{
+				name: 'binkaiCredentialsApi',
+				required: true,
+			},
 		],
 	};
 
+		
+
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
-		const nodeVersion = this.getNode().typeVersion;
+		const selectedPlugins = this.getNodeParameter('plugins', 0, 'auto') as string[];
+		const model = await this.getInputConnectionData(NodeConnectionType.AiLanguageModel, 0);
+
 		
 		const credentials = await this.getCredentials('binkaiCredentialsApi');
 		const mnemonic = credentials.walletMnemonic as string;
-		const openaiApiKey = credentials.apiKey as string;
+		const BIRDEYE_API_KEY = credentials.birdeyeApiKey as string || '';
+		const ALCHEMY_API_KEY = credentials.alchemyApiKey as string || '';
+
+			
 		// TODO: initialize all BinkAI plugins
 		const BSC_RPC_URL = 'https://binance.llamarpc.com';
 		const ETHEREUM_RPC_URL = 'https://eth.llamarpc.com';
 		const SOLANA_RPC_URL = 'https://api.mainnet-beta.solana.com';
-		const BIRDEYE_API_KEY = '';
-		const ALCHEMY_API_KEY = '';
+		
 		const networks: NetworksConfig['networks'] = {
 			bnb: {
 				type: 'evm',
@@ -546,12 +491,10 @@ export class BinkAINode implements INodeType {
 			network,
 		);
 
-		const llm = new OpenAIModel({
-			apiKey: openaiApiKey,
-			model: 'gpt-4o-mini',
-		});
+	
+		const n8nLLM = new N8NModel(model)
 		const agent = new Agent(
-			llm,
+			n8nLLM,
 			{
 				temperature: 0,
 			},
@@ -621,16 +564,23 @@ export class BinkAINode implements INodeType {
 			supportedChains: ['bnb', 'solana'],
 		});
 
-		await agent.registerPlugin(swapPlugin);
-		await agent.registerPlugin(walletPlugin);
-		await agent.registerPlugin(tokenPlugin);
-		await agent.registerPlugin(stakingPlugin);
-		await agent.registerPlugin(bridgePlugin);
+		
 
-
-
+		const pluginMap = {
+			'binkSwap': swapPlugin,
+			'binkWallet': walletPlugin,
+			'binkToken': tokenPlugin,
+			'binkStaking': stakingPlugin,
+			'binkBridge': bridgePlugin
+		};
+		
+		await Promise.all(
+			selectedPlugins
+				.filter(plugin => plugin in pluginMap)
+				.map(plugin => agent.registerPlugin(pluginMap[plugin]))
+		);
+		
 		this.logger.debug('Executing Conversational Agent');
-		const model = await this.getInputConnectionData(NodeConnectionType.AiLanguageModel, 0);
 
 		if (!isChatInstance(model)) {
 			throw new NodeOperationError(this.getNode(), 'Conversational Agent requires Chat Model');
@@ -642,19 +592,19 @@ export class BinkAINode implements INodeType {
 			| undefined;
 
 
-		const tools = await getConnectedTools(this, nodeVersion >= 1.5, true, true);
+		// const tools = await getConnectedTools(this, nodeVersion >= 1.5, true, true);
 		const outputParser = await getOptionalOutputParser(this);
 		
 
-		await checkForStructuredTools(tools, this.getNode(), 'Conversational Agent');
+		// await checkForStructuredTools(tools, this.getNode(), 'Conversational Agent');
 
 		// TODO: Make it possible in the future to use values for other items than just 0
-		const options = this.getNodeParameter('options', 0, {}) as {
-			systemMessage?: string;
-			humanMessage?: string;
-			maxIterations?: number;
-			returnIntermediateSteps?: boolean;
-		};
+		// const options = this.getNodeParameter('options', 0, {}) as {
+		// 	systemMessage?: string;
+		// 	humanMessage?: string;
+		// 	maxIterations?: number;
+		// 	returnIntermediateSteps?: boolean;
+		// };
 
 		const returnData: INodeExecutionData[] = [];
 
@@ -674,16 +624,13 @@ export class BinkAINode implements INodeType {
 			try {
 				let input;
 
-				// if (this.getNode().typeVersion <= 1.2) {
-				// 	input = this.getNodeParameter('text', itemIndex) as string;
-				// } else {
+			
 				input = getPromptInputByType({
 					ctx: this,
 					i: itemIndex,
 					inputKey: 'text',
 					promptTypeKey: 'promptType',
 				});
-				// }
 
 				if (input === undefined) {
 					throw new NodeOperationError(this.getNode(), "The 'text' parameter is empty.");
@@ -693,12 +640,7 @@ export class BinkAINode implements INodeType {
 					input = (await prompt.invoke({ input, memory })).value;
 				}
 
-				// let binkInput;
-				// if(memory){
-				// 	const chatHistory = await memory.chatHistory.getMessages();
-				// 	const historyString = chatHistory.map(msg => `${msg._getType()}: ${msg.content}`).join('\n');
-				// 	binkInput = `History Data: ${historyString}\n\nCurrent Input: ${input}`;
-				// }
+	
 
 				const response = await agent.execute(input);
 
@@ -710,9 +652,6 @@ export class BinkAINode implements INodeType {
 				
 				logger.enable(); // optional
 
-				// const response = await agent.execute(text);
-
-				// return [returnData]; // Remove this early return
 			} catch (error) {
 				throw new Error(`Error executing BinkAI node: ${error.message}`);
 			}
