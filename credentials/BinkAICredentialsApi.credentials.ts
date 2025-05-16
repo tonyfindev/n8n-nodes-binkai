@@ -5,6 +5,22 @@ import {
 	INodeProperties,
 } from 'n8n-workflow';
 
+const apiProviderProperties = [
+	{
+		displayName: 'Alchemy API Key',
+		name: 'alchemyApiKey',
+		type: 'string',
+		default: '',
+	},
+	{
+		displayName: 'Birdeye API Key',
+		name: 'birdeyeApiKey',
+		type: 'string',
+		default: '',
+		
+	}
+] as INodeProperties[];
+
 export class BinkAICredentialsApi implements ICredentialType {
 	name = 'binkaiCredentialsApi';
 	displayName = 'Bink AI Credentials API';
@@ -15,12 +31,13 @@ export class BinkAICredentialsApi implements ICredentialType {
 			type: 'string',
 			default: '',
 		},
-		{
-			displayName: 'OpenAI API Key',
-			name: 'apiKey',
-			type: 'string',
-			default: '',
-		},
+		// {
+		// 	displayName: 'OpenAI API Key',
+		// 	name: 'apiKey',
+		// 	type: 'string',
+		// 	default: '',
+		// },
+		...apiProviderProperties,
 	];
 	authenticate = {
 		type: 'generic',
@@ -28,6 +45,8 @@ export class BinkAICredentialsApi implements ICredentialType {
 			qs: {
 				api_key: '={{$credentials.apiKey}}',
 				wallet_mnemonic: '={{$credentials.walletMnemonic}}',
+				alchemy_api_key: '={{$credentials.alchemyApiKey}}',
+				birdeye_api_key: '={{$credentials.birdeyeApiKey}}',
 			},
 		},
 	} as IAuthenticateGeneric;
