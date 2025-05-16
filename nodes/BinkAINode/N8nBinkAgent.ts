@@ -5,30 +5,29 @@ import {
     IWallet, 
     NetworksConfig, 
     AgentExecuteParams, 
-    DatabaseAdapter, 
+    DatabaseAdapter,
+    IPlugin, 
 } from "@binkai/core";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { createOpenAIToolsAgent } from "langchain/agents";
 import { AgentExecutor } from "langchain/agents";
 import { MessagesPlaceholder } from "@langchain/core/prompts";
-import { DynamicStructuredTool } from "@langchain/core/tools";
 import { fixEmptyContentMessage, getAgentStepsParser } from "../../utils/common";
 import { RunnableSequence } from "@langchain/core/runnables";
 import { BaseChatMemory } from "@langchain/community/memory/chat_memory";
 import { N8nOutputParser } from "../../utils/output_parsers/N8nOutputParser";
-export class n8nBinkAgent extends BaseAgent {
+
+export class N8nBinkAgent extends BaseAgent {
     private model: IModel;
     private wallet: IWallet;
     private networks: NetworksConfig['networks'];
     private config: AgentConfig;
-    protected tools: DynamicStructuredTool[];
     private memory: BaseChatMemory;
     private outputParser: N8nOutputParser;
     constructor(
         model: IModel, 
         memory: BaseChatMemory,
         outputParser: N8nOutputParser,
-        tools: DynamicStructuredTool[],
         config: AgentConfig, 
         wallet: IWallet, 
         networks: NetworksConfig['networks'],
@@ -37,7 +36,6 @@ export class n8nBinkAgent extends BaseAgent {
         this.model = model;
         this.memory = memory;
         this.outputParser = outputParser;
-        this.tools = tools;
         this.config = config;
         this.wallet = wallet;
         this.networks = networks;
@@ -50,34 +48,43 @@ export class n8nBinkAgent extends BaseAgent {
         return false;
     }
 
+    async registerPlugin(plugin: IPlugin): Promise<void> {
+        const pluginName = plugin.getName();
+        this.plugins.set(pluginName, plugin);
+    
+        // Register all tools from the plugin
+        const tools = plugin.getTools();
+        for (const tool of tools) {
+          await this.registerTool(tool);
+        }
+    }
+
     protected async createExecutor(): Promise<AgentExecutor > {
-    const defaultSystemPrompt = `You are a helpful assistant that can help with tasks related to the BinkAI platform.`;
+        const defaultSystemPrompt = `You are a helpful assistant that can help with tasks related to the BinkAI platform.`;
 
-    const prompt = ChatPromptTemplate.fromMessages([
-        ['system', `${this.config.systemPrompt ?? defaultSystemPrompt}`],
-        new MessagesPlaceholder('chat_history'),
-        ['human', '{input}'],
-        new MessagesPlaceholder('agent_scratchpad'),
-    ]);
 
-    const agent = await createOpenAIToolsAgent({
-        llm: this.getModel().getLangChainLLM(),
-        tools: this.tools,
-        prompt,
-    });
+        const agent = await createOpenAIToolsAgent({
+            llm: this.getModel().getLangChainLLM(),
+            tools: this.tools,
+            prompt: ChatPromptTemplate.fromMessages([
+                ['system', `${this.config.systemPrompt ?? defaultSystemPrompt}`],
+                ['human', '{input}'],
+                new MessagesPlaceholder('agent_scratchpad'),
+            ]),
+        });
 
-    const runnableAgent = RunnableSequence.from([
-        agent,
-        getAgentStepsParser(this.outputParser, this.memory),
-        fixEmptyContentMessage,
-    ]);
+        const runnableAgent = RunnableSequence.from([
+            agent,
+            getAgentStepsParser(this.outputParser, this.memory),
+            fixEmptyContentMessage,
+        ]);
 
-    return AgentExecutor.fromAgentAndTools({
-        agent: runnableAgent,
-        memory: this.memory,
-        tools: this.tools,
-    });
-  }
+        return AgentExecutor.fromAgentAndTools({
+            agent: runnableAgent,
+            memory: this.memory,
+            tools: this.tools,
+        });
+    }
     
 
     public getWallet(): IWallet {
@@ -90,10 +97,14 @@ export class n8nBinkAgent extends BaseAgent {
     }
 
     public async execute(command: string | AgentExecuteParams, onStream?: (data: string) => void): Promise<any> {
+        const executor = await this.createExecutor();
         if (typeof command === 'string') {
-            return this.model.getLangChainLLM().invoke(command);
+            
+            return executor.invoke(
+                {input: command},
+            );
         }
-        return this.model.getLangChainLLM().invoke((command as AgentExecuteParams).input);
+        return executor.invoke(command);
     }
 
     public getNetworks(): NetworksConfig['networks'] {

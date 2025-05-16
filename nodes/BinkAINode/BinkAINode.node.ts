@@ -10,57 +10,40 @@ import {
 	NodeOperationError,
 	jsonParse,
 } from 'n8n-workflow';
-import { conversationalAgentProperties, pluginsTypeProperties } from './description';
-import { textInput, textFromPreviousNode } from '../../utils/descriptions';
+import { pluginsTypeProperties } from './description';
+import { textInput } from '../../utils/descriptions';
 import { getOptionalOutputParser, N8nOutputParser } from '../../utils/output_parsers/N8nOutputParser';
-import { isChatInstance, getPromptInputByType, getConnectedTools } from '../../utils/helpers';
-import { checkForStructuredTools, extractParsedOutput } from '../../utils/utils';
+import { getPromptInputByType } from '../../utils/helpers';
 import {
-	fixEmptyContentMessage,
-	getAgentStepsParser,
 	getChatModel,
 	getOptionalMemory,
 	getTools,
-	prepareMessages,
-	preparePrompt,
 } from '../../utils/common';
 
 import type { BaseChatMemory } from '@langchain/community/memory/chat_memory';
 import {
-	Agent,
 	Wallet,
 	Network,
 	NetworksConfig,
-	NetworkName,
-	logger,
-	OpenAIModel,
 	NetworkType,
 } from '@binkai/core';
+import { ethers, JsonRpcProvider } from 'ethers';
 import { SwapPlugin } from '@binkai/swap-plugin';
 import { TokenPlugin } from '@binkai/token-plugin';
-import { BridgePlugin } from '@binkai/bridge-plugin';
-import { StakingPlugin } from '@binkai/staking-plugin';
 import { WalletPlugin } from '@binkai/wallet-plugin';
-import { JsonRpcProvider } from 'ethers';
-import { BnbProvider, SolanaProvider } from '@binkai/rpc-provider';
-import { ThenaProvider } from '@binkai/thena-provider';
-import { PancakeSwapProvider } from '@binkai/pancakeswap-provider';
-import { VenusProvider } from '@binkai/venus-provider';
-import { OkuProvider } from '@binkai/oku-provider';
-import { KyberProvider } from '@binkai/kyber-provider';
-import { FourMemeProvider } from '@binkai/four-meme-provider';
 import { JupiterProvider } from '@binkai/jupiter-provider';
-import { Connection } from '@solana/web3.js';
-import { deBridgeProvider } from '@binkai/debridge-provider';
-import { BirdeyeProvider } from '@binkai/birdeye-provider';
+import { KyberProvider } from '@binkai/kyber-provider';
 import { AlchemyProvider } from '@binkai/alchemy-provider';
-import { PromptTemplate } from '@langchain/core/prompts';
 import { N8nLLM } from './N8nLLM';
-import { AgentExecutor, createToolCallingAgent } from 'langchain/agents';
-import { RunnableSequence } from '@langchain/core/runnables';
 import { omit } from 'lodash';
-import { n8nBinkAgent } from './agentBink';
+import { N8nBinkAgent } from './N8nBinkAgent';
 import { DynamicStructuredTool } from '@langchain/core/tools';
+import { deBridgeProvider } from '@binkai/debridge-provider';
+import { Connection } from '@solana/web3.js';
+import { BridgePlugin } from '@binkai/bridge-plugin';
+// import { TransferPlugin } from '@binkai/transfer-plugin';
+import { BirdeyeProvider } from '@binkai/birdeye-provider';
+import { SYSTEM_MESSAGE } from './prompt';
 
 function getInputs(
 	agent:
@@ -117,7 +100,6 @@ function getInputs(
 
 	let specialInputs: SpecialInput[] = [];
 
-	
 	if (agent === 'toolsAgent') {
 		specialInputs = [
 			{
@@ -167,7 +149,6 @@ const agentTypeProperty: INodeProperties = {
 	noDataExpression: true,
 	// eslint-disable-next-line n8n-nodes-base/node-param-options-type-unsorted-items
 	options: [
-		
 		{
 			name: 'Tools Agent',
 			value: 'toolsAgent',
@@ -177,9 +158,6 @@ const agentTypeProperty: INodeProperties = {
 	],
 	default: 'toolsAgent',
 };
-
-
-export const SYSTEM_MESSAGE = `You are a BINK AI agent. You are able to perform bridge and get token information on multiple chains. If you do not have the token address, you can use the symbol to get the token information before performing a bridge.`;
 
 
 export const promptTypeOptions: INodeProperties = {
@@ -199,7 +177,7 @@ export const promptTypeOptions: INodeProperties = {
 			description: 'Use an expression to reference data in previous nodes or enter static text',
 		},
 	],
-	default: SYSTEM_MESSAGE,
+	default: 'auto',
 }
 
 export const toolsAgentProperties: INodeProperties[] = [
@@ -219,7 +197,7 @@ export const toolsAgentProperties: INodeProperties[] = [
 				displayName: 'System Message',
 				name: 'systemMessage',
 				type: 'string',
-				default: SYSTEM_MESSAGE,
+				default: SYSTEM_MESSAGE,	
 				description: 'The message that will be sent to the agent before the conversation starts',
 				typeOptions: {
 					rows: 6,
@@ -304,15 +282,15 @@ export class BinkAINode implements INodeType {
 					},
 				},
 			},
-			{
-				displayName: 'Plugins',
-				name: 'plugins',
-				type: 'multiOptions',
-				default: 'auto',
-				options: pluginsTypeProperties.options,
-			},
+			// {
+			// 	displayName: 'Plugins',
+			// 	name: 'plugins',
+			// 	type: 'multiOptions',
+			// 	default: 'auto',
+			// 	options: pluginsTypeProperties.options,
+			// },
 			...[promptTypeOptions],
-			...[textFromPreviousNode],
+			// ...[textFromPreviousNode],
 			...[textInput],
 			...[agentTypeProperty],
 			...toolsAgentProperties,
@@ -325,104 +303,154 @@ export class BinkAINode implements INodeType {
 		],
 	};
 
-	
-
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 		const returnData: INodeExecutionData[] = [];
 		const items = this.getInputData();
 		const outputParser = await getOptionalOutputParser(this) as N8nOutputParser;
 		const tools = await getTools(this, outputParser) as DynamicStructuredTool[];
-		console.log('🚀 ~ BinkAINode ~ execute ~ tools:', tools);
+		console.log('🚀 ~ BinkAINode ~ call ~ tools:', tools);
 
-		if (tools.includes('binkSwap' as any)) {
-			// TODO: Implement binkSwap
-		}
-
-		if (tools.includes('binkToken' as any)) {
-			// TODO: Implement binkToken
-		}
-
-		if (tools.includes('binkBridge' as any)) {
-			// TODO: Implement binkBridge
-		}
-
-		if (tools.includes('binkStaking' as any)) {
-			// TODO: Implement binkStaking
-		}
-
-		if (tools.includes('binkWallet' as any)) {
-			// TODO: Implement binkWallet
-		}
-
-		if (tools.includes('binkBirdeye' as any)) {
-			// TODO: Implement binkBirdeye
-		}
-
-		if (tools.includes('binkAlchemy' as any)) {
-			// TODO: Implement binkAlchemy
-		}
-
-		const BNB_RPC = 'https://bsc-dataseed1.binance.org';
-		const ETH_RPC = 'https://eth.llamarpc.com';
-
-		const networks: NetworksConfig['networks'] = {
-			bnb: {
-			  type: 'evm' as NetworkType,
-			  config: {
-				chainId: 56,
-				rpcUrl: BNB_RPC,
-				name: 'BNB Chain',
-				nativeCurrency: {
-				  name: 'BNB',
-				  symbol: 'BNB',
-				  decimals: 18,
-				},
-			  },
-			},
-			ethereum: {
-			  type: 'evm' as NetworkType,
-			  config: {
-				chainId: 1,
-				rpcUrl: ETH_RPC,
-				name: 'Ethereum',
-				nativeCurrency: {
-				  name: 'Ether',
-				  symbol: 'ETH',
-				  decimals: 18,
-				},
-			  },
-			},
+		// Define RPC URLs once at the beginning
+		const RPC_URLS = {
+			BNB: 'https://bsc-dataseed1.binance.org',
+			ETH: 'https://eth.llamarpc.com',
+			SOL: 'https://api.mainnet-beta.solana.com'
 		};
-		const network = new Network({ networks });
-		const credentials = await this.getCredentials('binkaiCredentialsApi');
-		const wallet = new Wallet(
-			{
-			  seedPhrase:
-				credentials.walletMnemonic as string ||
-				'test test test test test test test test test test test test',
-			  index: 0,
-			},
-			network,
-		);
 
 		for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
 			try {
 				const llm = new N8nLLM(await getChatModel(this));
 				const memory = await getOptionalMemory(this) as BaseChatMemory;
+				
+				const networks: NetworksConfig['networks'] = {
+					bnb: {
+						type: 'evm' as NetworkType,
+						config: {
+							chainId: 56,
+							rpcUrl: RPC_URLS.BNB,
+							name: 'BNB Chain',
+							nativeCurrency: {
+								name: 'BNB',
+								symbol: 'BNB',
+								decimals: 18,
+							},
+						},
+					},
+					ethereum: {
+						type: 'evm' as NetworkType,
+						config: {
+							chainId: 1,
+							rpcUrl: RPC_URLS.ETH,
+							name: 'Ethereum',
+							nativeCurrency: {
+								name: 'Ether',
+								symbol: 'ETH',
+								decimals: 18,
+							},
+						},
+					},
+					solana: {
+						type: 'solana' as NetworkType,
+						config: {
+						  rpcUrl: RPC_URLS.SOL,
+						  name: 'Solana',
+						  nativeCurrency: {
+							name: 'Solana',
+							symbol: 'SOL',
+							decimals: 9,
+						  },
+						},
+					},
+				};
 
-				const binkAgent = new n8nBinkAgent(
+				console.log('🚀 ~ BinkAINode ~ execute ~ networks:', networks);
+				const network = new Network({ networks });
+				const credentials = await this.getCredentials('binkaiCredentialsApi');
+				const wallet = new Wallet(
+					{
+						seedPhrase:
+							credentials.walletMnemonic as string ||
+							'test test test test test test test test test test test test',
+						index: 0,
+					},
+					network,
+				);
+
+				const binkAgent = new N8nBinkAgent(
 					llm,
 					memory,
 					outputParser,
-					tools,
 					{
 						temperature: 0.5,
-						systemPrompt: SYSTEM_MESSAGE,
+						systemPrompt: SYSTEM_MESSAGE,	
 					},
 					wallet,
 					networks,
 				);
-				
+
+				const birdeyeApiKey = credentials.birdeyeApiKey as string;
+				const birdeyeProvider = new BirdeyeProvider({
+					apiKey: birdeyeApiKey,
+				});
+				const alchemyApiKey = credentials.alchemyApiKey as string;
+				const alchemyProvider = new AlchemyProvider({
+					apiKey: alchemyApiKey,
+				});
+
+				for (const tool of tools) {
+					try {
+						if (tool.name === 'swap_tool') {
+							const provider = new ethers.JsonRpcProvider(RPC_URLS.BNB);
+							const kyber = new KyberProvider(provider, 56);
+							const jupiter = new JupiterProvider(new Connection(RPC_URLS.SOL));
+							const swapPlugin = new SwapPlugin();
+							await swapPlugin.initialize({
+								defaultSlippage: 0.5,
+								defaultChain: 'bnb',
+								providers: [kyber, jupiter],
+								supportedChains: ['bnb', 'ethereum', 'solana'], // These will be intersected with agent's networks
+							});
+							await binkAgent.registerPlugin(swapPlugin);
+						}
+						
+						if (tool.name === 'bridge_tool') {
+							const bscProvider = new ethers.JsonRpcProvider(RPC_URLS.BNB);
+							const solanaProvider = new Connection(RPC_URLS.SOL);
+							const debridge = new deBridgeProvider([bscProvider, solanaProvider], 56, 7565164);
+							const bridgePlugin = new BridgePlugin();
+							await bridgePlugin.initialize({
+								supportedChains: ['bnb', 'ethereum', 'solana'],
+								providers: [debridge],
+							});
+							await binkAgent.registerPlugin(bridgePlugin);
+						}
+
+						if (tool.name === 'token_tool') {
+							const tokenPlugin = new TokenPlugin();
+							await tokenPlugin.initialize({
+								defaultChain: 'bnb',
+								providers: [birdeyeProvider, alchemyProvider],
+								supportedChains: ['solana', 'bnb', 'ethereum'],
+							});
+							await binkAgent.registerPlugin(tokenPlugin);
+						}
+
+						if (tool.name === 'wallet_tool') {
+							const walletPlugin = new WalletPlugin();
+							await walletPlugin.initialize({
+								defaultChain: 'bnb',
+								providers: [birdeyeProvider, alchemyProvider],
+								supportedChains: ['bnb', 'solana', 'ethereum'],
+							});
+							await binkAgent.registerPlugin(walletPlugin);
+						}
+						
+						
+						// Other tool handling sections are commented out
+					} catch (error) {
+						console.log('🚀 ~ BinkAINode ~ tool initialization error:', error);
+					}
+				}
 
 				const input = getPromptInputByType({
 					ctx: this,
@@ -430,40 +458,17 @@ export class BinkAINode implements INodeType {
 					inputKey: 'text',
 					promptTypeKey: 'promptType',
 				});
+				
 				if (input === undefined) {
-					throw new NodeOperationError(this.getNode(), 'The “text” parameter is empty.');
+					throw new NodeOperationError(this.getNode(), 'The "text" parameter is empty.');
 				}
 
-				// const options = this.getNodeParameter('options', itemIndex, {}) as {
-				// 	systemMessage?: string;
-				// 	maxIterations?: number;
-				// 	returnIntermediateSteps?: boolean;
-				// 	passthroughBinaryImages?: boolean;
-				// };
+				console.log('🚀 ~ BinkAINode ~ execute ~ input:', input);
 
-				// Prepare the prompt messages and prompt template.
-				// const messages = await prepareMessages(this, itemIndex, {
-				// 	systemMessage: options.systemMessage,
-				// 	passthroughBinaryImages: options.passthroughBinaryImages ?? true,
-				// 	outputParser,
-				// });
-				// const prompt = preparePrompt(messages);
 				const response = await binkAgent.execute({
 					input: input,
 				});
 
-
-				// const response = await agent.invoke(
-				// 	{
-				// 		input,
-				// 		system_message: options.systemMessage ?? SYSTEM_MESSAGE,
-				// 		formatting_instructions:
-				// 			'IMPORTANT: For your response to user, you MUST use the `format_final_json_response` tool with your complete answer formatted according to the required schema. Do not attempt to format the JSON manually - always use this tool. Your response will be rejected if it is not properly formatted through this tool. Only use this tool once you are ready to provide your final answer.',
-				// 	},
-				// 	{ signal: this.getExecutionCancelSignal() },
-				// );
-
-				// If memory and outputParser are connected, parse the output.
 				if (memory && outputParser) {
 					const parsedOutput = jsonParse<{ output: Record<string, unknown> }>(
 						response.output as string,
@@ -485,9 +490,10 @@ export class BinkAINode implements INodeType {
 
 				returnData.push(itemResult);
 			} catch (error) {
+				console.log('🚀 ~ BinkAINode ~ execute ~ error:', error);
 				if (this.continueOnFail()) {
 					returnData.push({
-						json: { error: error.message },
+						json: { error: error.message || 'An error occurred' },
 						pairedItem: { item: itemIndex },
 					});
 					continue;
@@ -495,7 +501,7 @@ export class BinkAINode implements INodeType {
 				throw error;
 			}
 		}
-
+		
 		return [returnData];
 	}
 }

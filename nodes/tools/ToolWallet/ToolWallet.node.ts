@@ -11,17 +11,17 @@ import { logWrapper } from '../../../utils/logWrapper';
 import { getConnectionHintNoticeField } from '../../../utils/sharedFields';
 import { DynamicTool } from '@langchain/core/tools';
 
-export class ToolSwap implements INodeType {
+export class ToolWallet implements INodeType {
 	description: INodeTypeDescription = {
-		displayName: 'Swap Tool for BinkAI',
-		name: 'toolSwap',
-		icon: 'file:swap_bink_ai.svg',
+		displayName: 'Wallet Tool for BinkAI',
+		name: 'toolWallet',
+		icon: 'file:wallet_bink_ai.svg',
 		iconColor: 'black',
 		group: ['transform'],
 		version: 1,
 		description: 'Make it easier for AI agents to perform arithmetic',
 		defaults: {
-			name: 'BinkAI Swap',
+			name: 'BinkAI Wallet',
 		},
 		codex: {
 			categories: ['AI'],
@@ -46,10 +46,10 @@ export class ToolSwap implements INodeType {
 	};
 
 	async supplyData(this: ISupplyDataFunctions): Promise<SupplyData> {
-		this.logger.info('Supplying data for ToolSwap for BinkAIs');
+		this.logger.info('Supplying data for ToolWallet for BinkAIs');
 		const tool = new DynamicTool({
-			name: 'swap_tool',
-			description: 'Swap tool for BinkAI',
+			name: 'wallet_tool',
+			description: 'Wallet tool for BinkAI',
 			func: async (subject: string) => {
 				return subject;
 			},
