@@ -18,7 +18,7 @@ import { BaseChatMemory } from '@langchain/community/memory/chat_memory';
 import { N8nOutputParser } from '../../utils/output_parsers/N8nOutputParser';
 import { getAgentTracingConfig } from '../../utils/tracing';
 import { PlanAndExecuteAgentExecutor } from 'langchain/experimental/plan_and_execute';
-import { ToolName } from '../../utils/toolName';
+import { AgentType, ToolName } from '../../utils/toolName';
 
 export class N8nBinkAgent extends BaseAgent {
 	private model: IModel;
@@ -134,14 +134,14 @@ export class N8nBinkAgent extends BaseAgent {
 	): Promise<any> {
 		let executor;
 		let response;
-		if (this.typeAgent === 'ToolsAgent') {
-			executor = await this.createToolsAgentExecutor();
-			response = await executor.invoke({ input: command, outputParser: this.outputParser });
-		} else if (this.typeAgent === 'PlanningAgent') {
+		if (this.typeAgent === AgentType.PLANNING_AGENT) {
 			executor = await this.createPlanningAgentExecutor();
 			response = await executor
 				.withConfig(getAgentTracingConfig(this))
 				.invoke({ input: command, outputParser: this.outputParser });
+		} else {
+			executor = await this.createToolsAgentExecutor();
+			response = await executor.invoke({ input: command, outputParser: this.outputParser });
 		}
 		return response;
 	}

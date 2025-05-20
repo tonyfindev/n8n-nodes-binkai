@@ -40,7 +40,6 @@
     ],
     "nodes": [
       "dist/nodes/BinkAgentNode/BinkAgentNode.node.js",
-      "dist/nodes/tools/ToolCalculator/ToolCalculator.node.js",
       "dist/nodes/tools/ToolSwap/ToolSwap.node.js",
       "dist/nodes/tools/ToolBridge/ToolBridge.node.js",
       "dist/nodes/tools/ToolToken/ToolToken.node.js",
