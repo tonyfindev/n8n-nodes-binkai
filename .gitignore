@@ -8,3 +8,6 @@ yarn.lock
 .vscode/launch.json
 .env
 *.traineddata
+.vscode
+.github
+.idea
