@@ -1,5 +1,11 @@
 import { NetworksConfig, NetworkType } from '@binkai/core';
 
+export enum SupportChain {
+	BNB = 'bnb',
+	ETHEREUM = 'ethereum',
+	SOLANA = 'solana',
+}
+
 export interface RpcUrls {
 	BNB: string;
 	ETH: string;
@@ -7,7 +13,7 @@ export interface RpcUrls {
 }
 
 export const getNetworksConfig = (rpcUrls: RpcUrls): NetworksConfig['networks'] => ({
-	bnb: {
+	[SupportChain.BNB]: {
 		type: 'evm' as NetworkType,
 		config: {
 			chainId: 56,
@@ -20,7 +26,7 @@ export const getNetworksConfig = (rpcUrls: RpcUrls): NetworksConfig['networks'] 
 			},
 		},
 	},
-	ethereum: {
+	[SupportChain.ETHEREUM]: {
 		type: 'evm' as NetworkType,
 		config: {
 			chainId: 1,
@@ -33,7 +39,7 @@ export const getNetworksConfig = (rpcUrls: RpcUrls): NetworksConfig['networks'] 
 			},
 		},
 	},
-	solana: {
+	[SupportChain.SOLANA]: {
 		type: 'solana' as NetworkType,
 		config: {
 			rpcUrl: rpcUrls.SOL,

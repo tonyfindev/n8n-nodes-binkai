@@ -19,7 +19,7 @@ import { getPromptInputByType } from '../../utils/helpers';
 import { getChatModel, getOptionalMemory, getTools } from '../../utils/common';
 import { ToolName } from '../../utils/toolName';
 import type { BaseChatMemory } from '@langchain/community/memory/chat_memory';
-import { Wallet, Network, NetworksConfig, NetworkType } from '@binkai/core';
+import { Wallet, Network } from '@binkai/core';
 import { ethers } from 'ethers';
 import { SwapPlugin } from '@binkai/swap-plugin';
 import { TokenPlugin } from '@binkai/token-plugin';
@@ -38,7 +38,7 @@ import { BridgePlugin } from '@binkai/bridge-plugin';
 import { BirdeyeProvider } from '@binkai/birdeye-provider';
 import { SYSTEM_MESSAGE } from '../../utils/prompt';
 import { planAndExecuteAgentProperties } from '../../utils/descriptions';
-import { getNetworksConfig } from '../../utils/networks';
+import { getNetworksConfig, SupportChain } from '../../utils/networks';
 
 function getInputs(
 	agent:
@@ -337,9 +337,9 @@ export class BinkAgentNode implements INodeType {
 							const swapPlugin = new SwapPlugin();
 							await swapPlugin.initialize({
 								defaultSlippage: 0.5,
-								defaultChain: 'bnb',
+								defaultChain: SupportChain.BNB,
 								providers: [kyber, jupiter],
-								supportedChains: ['bnb', 'ethereum', 'solana'],
+								supportedChains: [SupportChain.BNB, SupportChain.ETHEREUM, SupportChain.SOLANA],
 							});
 							pluginMap.set('swap', swapPlugin);
 						}
@@ -350,7 +350,7 @@ export class BinkAgentNode implements INodeType {
 							const debridge = new deBridgeProvider([bscProvider, solanaProvider], 56, 7565164);
 							const bridgePlugin = new BridgePlugin();
 							await bridgePlugin.initialize({
-								supportedChains: ['bnb', 'ethereum', 'solana'],
+								supportedChains: [SupportChain.BNB, SupportChain.ETHEREUM, SupportChain.SOLANA],
 								providers: [debridge],
 							});
 							pluginMap.set('bridge', bridgePlugin);
@@ -361,9 +361,9 @@ export class BinkAgentNode implements INodeType {
 						if (!pluginMap.has('token')) {
 							const tokenPlugin = new TokenPlugin();
 							await tokenPlugin.initialize({
-								defaultChain: 'bnb',
+								defaultChain: SupportChain.BNB,
 								providers: [birdeyeProvider, alchemyProvider],
-								supportedChains: ['solana', 'bnb', 'ethereum'],
+								supportedChains: [SupportChain.SOLANA, SupportChain.BNB, SupportChain.ETHEREUM],
 							});
 							pluginMap.set('token', tokenPlugin);
 						}
@@ -373,9 +373,9 @@ export class BinkAgentNode implements INodeType {
 						if (!pluginMap.has('wallet')) {
 							const walletPlugin = new WalletPlugin();
 							await walletPlugin.initialize({
-								defaultChain: 'bnb',
+								defaultChain: SupportChain.BNB,
 								providers: [birdeyeProvider, alchemyProvider],
-								supportedChains: ['bnb', 'solana', 'ethereum'],
+								supportedChains: [SupportChain.BNB, SupportChain.SOLANA, SupportChain.ETHEREUM],
 							});
 							pluginMap.set('wallet', walletPlugin);
 						}
