@@ -7,24 +7,6 @@ import {
 
 const apiProviderProperties = [
 	{
-		displayName: 'Alchemy API Key',
-		name: 'alchemyApiKey',
-		type: 'string',
-		typeOptions: {
-			password: true,
-		},
-		default: '',
-	},
-	{
-		displayName: 'Birdeye API Key',
-		name: 'birdeyeApiKey',
-		type: 'string',
-		typeOptions: {
-			password: true,
-		},
-		default: '',
-	},
-	{
 		displayName: 'Solana RPC URL',
 		name: 'solRpcUrl',
 		type: 'string',
@@ -48,17 +30,6 @@ export class BinkAICredentialsApi implements ICredentialType {
 	name = 'binkaiCredentialsApi';
 	displayName = 'Bink AI Credentials API';
 	properties: INodeProperties[] = [
-		{
-			displayName: 'Wallet Mnemonic',
-			name: 'walletMnemonic',
-			type: 'string',
-			description: 'The mnemonic of the wallet to use for the agent',
-			required: true,
-			typeOptions: {
-				password: true,
-			},
-			default: '',
-		},
 		...apiProviderProperties,
 	];
 	authenticate: IAuthenticateGeneric = {
@@ -66,9 +37,6 @@ export class BinkAICredentialsApi implements ICredentialType {
 		properties: {
 			qs: {
 				api_key: '={{$credentials.apiKey}}',
-				wallet_mnemonic: '={{$credentials.walletMnemonic}}',
-				alchemy_api_key: '={{$credentials.alchemyApiKey}}',
-				birdeye_api_key: '={{$credentials.birdeyeApiKey}}',
 				sol_rpc_url: '={{$credentials.solRpcUrl}}',
 				eth_rpc_url: '={{$credentials.ethRpcUrl}}',
 				bnb_rpc_url: '={{$credentials.bnbRpcUrl}}',
