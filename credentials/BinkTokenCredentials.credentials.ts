@@ -26,7 +26,7 @@ const tokenProviderProperties = [
 	},
 ] as INodeProperties[];
 
-export class BinkAICredentialsApi implements ICredentialType {
+export class BinkTokenCredentials implements ICredentialType {
 	name = 'binkaiTokenCredentials';
 	displayName = 'Bink AI Token Credentials';
 	properties: INodeProperties[] = [

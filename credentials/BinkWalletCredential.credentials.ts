@@ -7,7 +7,7 @@ import {
 
 
 
-export class BinkWalletCredential implements ICredentialType {
+export class BinkWalletCredentials implements ICredentialType {
 	name = 'binkWalletCredentials';
 	displayName = 'Bink Base Wallet Mnemonic';
 	properties: INodeProperties[] = [
