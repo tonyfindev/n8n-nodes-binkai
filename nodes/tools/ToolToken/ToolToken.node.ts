@@ -2,6 +2,7 @@
 import {
 	NodeConnectionType,
 	type INodeType,
+	type INodeProperties,
 	type INodeTypeDescription,
 	type ISupplyDataFunctions,
 	type SupplyData,
@@ -11,6 +12,8 @@ import { logWrapper } from '../../../utils/logWrapper';
 import { getConnectionHintNoticeField } from '../../../utils/sharedFields';
 import { DynamicTool } from '@langchain/core/tools';
 import { ToolName } from '../../../utils/toolName';
+
+
 
 export class ToolToken implements INodeType {
 	description: INodeTypeDescription = {
@@ -43,7 +46,16 @@ export class ToolToken implements INodeType {
 		// eslint-disable-next-line n8n-nodes-base/node-class-description-outputs-wrong
 		outputs: [NodeConnectionType.AiTool],
 		outputNames: ['Tool'],
-		properties: [getConnectionHintNoticeField([NodeConnectionType.AiAgent])],
+		properties: [
+			getConnectionHintNoticeField([NodeConnectionType.AiAgent]),
+			// ...protocolsTypeProperties,
+		],
+		credentials: [
+			{
+				name: 'binkaiTokenCredentials',
+				required: true,
+			},
+		],
 	};
 
 	async supplyData(this: ISupplyDataFunctions): Promise<SupplyData> {
