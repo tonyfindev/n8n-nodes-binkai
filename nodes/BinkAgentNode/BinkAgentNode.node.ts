@@ -3,12 +3,12 @@ import {
 	INodeExecutionData,
 	INodeType,
 	INodeTypeDescription,
-	NodeConnectionType,
 	INodeInputConfiguration,
 	INodeInputFilter,
 	INodeProperties,
 	NodeOperationError,
 	jsonParse,
+	NodeConnectionType,
 } from 'n8n-workflow';
 import { textInput } from '../../utils/descriptions';
 import {
@@ -275,13 +275,7 @@ export class BinkAgentNode implements INodeType {
 					},
 				},
 			},
-			// {
-			// 	displayName: 'Plugins',
-			// 	name: 'plugins',
-			// 	type: 'multiOptions',
-			// 	default: 'auto',
-			// 	options: pluginsTypeProperties.options,
-			// },
+			
 			...[promptTypeOptions],
 			// ...[textFromPreviousNode],
 			...[textInput],
@@ -305,17 +299,19 @@ export class BinkAgentNode implements INodeType {
 		const tools = (await getTools(this, outputParser)) as DynamicStructuredTool[];
 
 		// Get credentials
-		const credentials = await this.getCredentials('binkaiCredentialsApi');
+		const baseCredentials = await this.getCredentials('binkaiCredentialsApi');
+		const walletCredentials = await this.getCredentials('binkWalletCredentials');
+		const tokenCredentials = await this.getCredentials('binkaiTokenCredentials');
 
 		// Get RPC URLs from credentials
 		const RPC_URLS = {
-			BNB: credentials.bnbRpcUrl as string,
-			ETH: credentials.ethRpcUrl as string,
-			SOL: credentials.solRpcUrl as string,
+			BNB: baseCredentials.bnbRpcUrl as string,
+			ETH: baseCredentials.ethRpcUrl as string,
+			SOL: baseCredentials.solRpcUrl as string,
 		};
 
-		const birdeyeApiKey = credentials.birdeyeApiKey as string;
-		const alchemyApiKey = credentials.alchemyApiKey as string;
+		const birdeyeApiKey = tokenCredentials.birdeyeApiKey as string;
+		const alchemyApiKey = tokenCredentials.alchemyApiKey as string;
 
 		// Initialize providers
 		const birdeyeProvider = new BirdeyeProvider({ apiKey: birdeyeApiKey });
@@ -402,7 +398,7 @@ export class BinkAgentNode implements INodeType {
 				const wallet = new Wallet(
 					{
 						seedPhrase:
-							(credentials.walletMnemonic as string) ||
+							(walletCredentials.mnemonic as string) ||
 							'test test test test test test test test test test test test',
 						index: 0,
 					},
