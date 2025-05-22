@@ -46,7 +46,7 @@ export class ToolWallet implements INodeType {
 		properties: [getConnectionHintNoticeField([NodeConnectionType.AiAgent])],
 		credentials: [
 			{
-				name: 'binkWalletCredential',
+				name: 'binkWalletCredentials',
 				required: true,
 			},
 		]
