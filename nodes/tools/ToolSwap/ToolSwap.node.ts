@@ -1,6 +1,7 @@
 /* eslint-disable n8n-nodes-base/node-dirname-against-convention */
 import {
 	NodeConnectionType,
+	type INodeProperties,
 	type INodeType,
 	type INodeTypeDescription,
 	type ISupplyDataFunctions,
@@ -11,6 +12,48 @@ import { logWrapper } from '../../../utils/logWrapper';
 import { getConnectionHintNoticeField } from '../../../utils/sharedFields';
 import { DynamicTool } from '@langchain/core/tools';
 import { ToolName } from '../../../utils/toolName';
+
+const bnbPotocolsTypeProperties: INodeProperties[] = [
+	{
+		displayName: 'BNB Swap Protocols',
+		name: 'bnbSwapProtocols',
+		type: 'multiOptions',
+		description: 'The swap protocols to use for the agent. You can select multiple protocols.',
+		options: [
+			{
+				name: 'Kyber',
+				value: 'kyber',
+			},
+			{
+				name: 'OKU',
+				value: 'oku',
+			},
+			{
+				name: 'Thena',
+				value: 'thena',
+			},
+		],
+		required: true,
+		default: 'kyber',
+	},
+];
+
+const solanaPotocolsTypeProperties: INodeProperties[] = [
+	{
+		displayName: 'Solana Swap Protocols',
+		name: 'solanaSwapProtocols',
+		type: 'multiOptions',
+		description: 'The swap protocols to use for the agent. You can select multiple protocols.',
+		options: [
+		{
+			name: 'Jupiter',
+			value: 'jupiter',
+		},
+	],
+		required: true,
+		default: 'jupiter',
+	},
+];
 
 export class ToolSwap implements INodeType {
 	description: INodeTypeDescription = {
@@ -43,7 +86,11 @@ export class ToolSwap implements INodeType {
 		// eslint-disable-next-line n8n-nodes-base/node-class-description-outputs-wrong
 		outputs: [NodeConnectionType.AiTool],
 		outputNames: ['Tool'],
-		properties: [getConnectionHintNoticeField([NodeConnectionType.AiAgent])],
+		properties: [
+			getConnectionHintNoticeField([NodeConnectionType.AiAgent]),
+			...bnbPotocolsTypeProperties,
+			...solanaPotocolsTypeProperties,
+		],
 	};
 
 	async supplyData(this: ISupplyDataFunctions): Promise<SupplyData> {
