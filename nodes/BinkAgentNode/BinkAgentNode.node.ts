@@ -3,12 +3,12 @@ import {
 	INodeExecutionData,
 	INodeType,
 	INodeTypeDescription,
-	NodeConnectionType,
 	INodeInputConfiguration,
 	INodeInputFilter,
 	INodeProperties,
 	NodeOperationError,
 	jsonParse,
+	NodeConnectionType,
 } from 'n8n-workflow';
 import { textInput } from '../../utils/descriptions';
 import {
@@ -26,6 +26,8 @@ import { TokenPlugin } from '@binkai/token-plugin';
 import { WalletPlugin } from '@binkai/wallet-plugin';
 import { JupiterProvider } from '@binkai/jupiter-provider';
 import { KyberProvider } from '@binkai/kyber-provider';
+import { OkuProvider } from '@binkai/oku-provider';
+import { ThenaProvider } from '@binkai/thena-provider';
 import { AlchemyProvider } from '@binkai/alchemy-provider';
 import { N8nLLM } from '../N8NBase/N8nLLM';
 import { omit } from 'lodash';
@@ -149,6 +151,12 @@ const agentTypeProperty: INodeProperties = {
 			value: 'toolsAgent',
 			description:
 				'Utilizes structured tool schemas for precise and reliable tool selection and execution. Recommended for complex tasks requiring accurate and consistent tool usage, but only usable with models that support tool calling.',
+		},
+		{
+			name: 'Plan and Execute Agent',
+			value: 'planAndExecuteAgent',
+			description:
+				'Utilizes a plan and execute approach to solve complex tasks. Recommended for tasks that require a structured approach to problem solving.',
 		},
 	],
 	default: 'toolsAgent',
@@ -275,13 +283,7 @@ export class BinkAgentNode implements INodeType {
 					},
 				},
 			},
-			// {
-			// 	displayName: 'Plugins',
-			// 	name: 'plugins',
-			// 	type: 'multiOptions',
-			// 	default: 'auto',
-			// 	options: pluginsTypeProperties.options,
-			// },
+			
 			...[promptTypeOptions],
 			// ...[textFromPreviousNode],
 			...[textInput],
@@ -305,17 +307,18 @@ export class BinkAgentNode implements INodeType {
 		const tools = (await getTools(this, outputParser)) as DynamicStructuredTool[];
 
 		// Get credentials
-		const credentials = await this.getCredentials('binkaiCredentialsApi');
-
+		const baseCredentials = await this.getCredentials('binkaiCredentialsApi');
+		const walletCredentials = await this.getCredentials('binkWalletCredentials');
+		const tokenCredentials = await this.getCredentials('binkaiTokenCredentials');
 		// Get RPC URLs from credentials
 		const RPC_URLS = {
-			BNB: credentials.bnbRpcUrl as string,
-			ETH: credentials.ethRpcUrl as string,
-			SOL: credentials.solRpcUrl as string,
+			BNB: baseCredentials.bnbRpcUrl as string,
+			ETH: baseCredentials.ethRpcUrl as string,
+			SOL: baseCredentials.solRpcUrl as string,
 		};
 
-		const birdeyeApiKey = credentials.birdeyeApiKey as string;
-		const alchemyApiKey = credentials.alchemyApiKey as string;
+		const birdeyeApiKey = tokenCredentials.birdeyeApiKey as string;
+		const alchemyApiKey = tokenCredentials.alchemyApiKey as string;
 
 		// Initialize providers
 		const birdeyeProvider = new BirdeyeProvider({ apiKey: birdeyeApiKey });
@@ -325,6 +328,31 @@ export class BinkAgentNode implements INodeType {
 
 		// Initialize plugins map
 		const pluginMap = new Map();
+		
+		const bnbSwapProtocols = this.getNodeParameter('bnbSwapProtocols', 0) as string[];
+		const solanaSwapProtocols = this.getNodeParameter('solanaSwapProtocols', 0) as string[];
+
+		let swapProtocols: any[] = [];
+		if (bnbSwapProtocols.includes('kyber')) {
+			const kyber = new KyberProvider(bscProvider, 56);
+			swapProtocols.push(kyber);
+		}
+		if (bnbSwapProtocols.includes('jupiter')) {
+			const jupiter = new JupiterProvider(solanaProvider);
+			swapProtocols.push(jupiter);
+		}
+		if (bnbSwapProtocols.includes('oku')) {
+			const oku = new OkuProvider(bscProvider, 56);
+			swapProtocols.push(oku);
+		}
+		if (bnbSwapProtocols.includes('thena')) {
+			const thena = new ThenaProvider(bscProvider, 56);
+			swapProtocols.push(thena);
+		}
+		if (solanaSwapProtocols.includes('jupiter')) {
+			const jupiter = new JupiterProvider(solanaProvider);
+			swapProtocols.push(jupiter);
+		}
 
 		// Initialize plugins based on available tools
 		for (const tool of tools) {
@@ -332,13 +360,11 @@ export class BinkAgentNode implements INodeType {
 				switch (tool.name) {
 					case ToolName.SWAP_TOOL:
 						if (!pluginMap.has('swap')) {
-							const kyber = new KyberProvider(bscProvider, 56);
-							const jupiter = new JupiterProvider(solanaProvider);
 							const swapPlugin = new SwapPlugin();
 							await swapPlugin.initialize({
 								defaultSlippage: 0.5,
 								defaultChain: SupportChain.BNB,
-								providers: [kyber, jupiter],
+								providers: swapProtocols,
 								supportedChains: [SupportChain.BNB, SupportChain.ETHEREUM, SupportChain.SOLANA],
 							});
 							pluginMap.set('swap', swapPlugin);
@@ -402,7 +428,7 @@ export class BinkAgentNode implements INodeType {
 				const wallet = new Wallet(
 					{
 						seedPhrase:
-							(credentials.walletMnemonic as string) ||
+							(walletCredentials.mnemonic as string) ||
 							'test test test test test test test test test test test test',
 						index: 0,
 					},

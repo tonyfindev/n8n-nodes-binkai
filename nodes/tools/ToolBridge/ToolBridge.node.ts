@@ -5,12 +5,49 @@ import {
 	type INodeTypeDescription,
 	type ISupplyDataFunctions,
 	type SupplyData,
+	type INodeProperties,
 } from 'n8n-workflow';
 
 import { logWrapper } from '../../../utils/logWrapper';
 import { getConnectionHintNoticeField } from '../../../utils/sharedFields';
 import { DynamicTool } from '@langchain/core/tools';
 import { ToolName } from '../../../utils/toolName';
+
+const bscBridgeProvider: INodeProperties[] = [
+	{
+		displayName: 'BSC Bridge Provider',
+		name: 'bscBridgeProvider',
+		type: 'multiOptions',
+		description: 'The provider to use for the BSC bridge. You can select multiple providers. Will be updated soon for more providers.',
+		required: true,
+		options: [
+			{
+				displayName: 'BSC Provider',
+				name: 'bscProvider',
+				value: 'bscProvider',
+			},
+		],
+		default: 'bscProvider',
+	},
+];
+
+const solanaBridgeProvider: INodeProperties[] = [
+	{
+		displayName: 'Solana Bridge Provider',
+		name: 'solanaBridgeProvider',
+		type: 'multiOptions',
+		description: 'The provider to use for the Solana bridge. You can select multiple providers. Will be updated soon for more providers.',
+		required: true,
+		options: [
+			{
+				displayName: 'Solana Provider',
+				name: 'solanaProvider',
+				value: 'solanaProvider',
+			},
+		],
+		default: 'solanaProvider',
+	},
+];
 
 export class ToolBridge implements INodeType {
 	description: INodeTypeDescription = {
@@ -43,7 +80,11 @@ export class ToolBridge implements INodeType {
 		// eslint-disable-next-line n8n-nodes-base/node-class-description-outputs-wrong
 		outputs: [NodeConnectionType.AiTool],
 		outputNames: ['Tool'],
-		properties: [getConnectionHintNoticeField([NodeConnectionType.AiAgent])],
+		properties: [
+			getConnectionHintNoticeField([NodeConnectionType.AiAgent]),
+			...bscBridgeProvider,
+			...solanaBridgeProvider,
+		],
 	};
 
 	async supplyData(this: ISupplyDataFunctions): Promise<SupplyData> {

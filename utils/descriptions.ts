@@ -186,39 +186,5 @@ export const planAndExecuteAgentProperties: INodeProperties[] = [
 				},
 			},
 		],
-	},
+	},		
 ];
-
-export const pluginsTypeProperties: INodeProperties = {
-	displayName: 'Blockchain Plugin',
-	name: 'plugins',
-	type: 'multiOptions',
-	options: [
-		{
-			name: 'Bridge',
-			value: 'binkBridge',
-			description: 'Action bridge token A to token B using BinkAgent Plugin',
-		},
-		{
-			name: 'Search Token Info',
-			value: 'binkToken',
-			description: 'Search for token info on Bink Agent Plugin',
-		},
-		{
-			name: 'Staking',
-			value: 'binkStaking',
-			description: 'Stake and Unstake tokens on Bink Agent Plugin',
-		},
-		{
-			name: 'Swap',
-			value: 'binkSwap',
-			description: 'Action swap token A to token B using BinkAgent Plugin',
-		},
-		{
-			name: 'Wallet',
-			value: 'binkWallet',
-			description: 'Manage your Bink Agent Plugin Wallet',
-		},
-	],
-	default: [],
-};

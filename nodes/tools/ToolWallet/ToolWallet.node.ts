@@ -44,6 +44,12 @@ export class ToolWallet implements INodeType {
 		outputs: [NodeConnectionType.AiTool],
 		outputNames: ['Tool'],
 		properties: [getConnectionHintNoticeField([NodeConnectionType.AiAgent])],
+		credentials: [
+			{
+				name: 'binkWalletCredentials',
+				required: true,
+			},
+		]
 	};
 
 	async supplyData(this: ISupplyDataFunctions): Promise<SupplyData> {
