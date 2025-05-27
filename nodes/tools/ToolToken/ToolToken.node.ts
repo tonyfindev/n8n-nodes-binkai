@@ -6,12 +6,18 @@ import {
 	type INodeTypeDescription,
 	type ISupplyDataFunctions,
 	type SupplyData,
+	IExecuteFunctions,
+	ICredentialDataDecryptedObject,
 } from 'n8n-workflow';
 
 import { logWrapper } from '../../../utils/logWrapper';
 import { getConnectionHintNoticeField } from '../../../utils/sharedFields';
 import { DynamicTool } from '@langchain/core/tools';
 import { ToolName } from '../../../utils/toolName';
+import { SupportChain } from '../../../utils/networks';
+import { TokenPlugin } from '@binkai/token-plugin';
+import { BirdeyeProvider } from '@binkai/birdeye-provider';
+import { AlchemyProvider } from '@binkai/alchemy-provider';
 
 
 
@@ -58,8 +64,33 @@ export class ToolToken implements INodeType {
 		],
 	};
 
-	async supplyData(this: ISupplyDataFunctions): Promise<SupplyData> {
+	private static tokenPlugin?: TokenPlugin;
+	
+
+	async getTokenPlugin(): Promise<any> {
+		return ToolToken.tokenPlugin;
+	}
+
+
+	async supplyData(this: ISupplyDataFunctions): Promise<any> {
 		this.logger.info('Supplying data for ToolToken for BinkAIs');
+		
+		const tokenCredentials = await this.getCredentials('binkaiTokenCredentials');
+		const birdeyeApiKey = tokenCredentials.birdeyeApiKey as string;
+		const alchemyApiKey = tokenCredentials.alchemyApiKey as string;
+
+
+		const birdeyeProvider = new BirdeyeProvider({ apiKey: birdeyeApiKey });
+		const alchemyProvider = new AlchemyProvider({ apiKey: alchemyApiKey });
+
+		const tokenPlugin = new TokenPlugin();
+		await tokenPlugin.initialize({
+			defaultChain: SupportChain.BNB,
+			providers: [birdeyeProvider, alchemyProvider],
+			supportedChains: [SupportChain.SOLANA, SupportChain.BNB, SupportChain.ETHEREUM],
+		});
+    	ToolToken.tokenPlugin = tokenPlugin; // Use static property
+
 		const tool = new DynamicTool({
 			name: ToolName.TOKEN_TOOL,
 			description: 'Token tool for BinkAI',
@@ -67,7 +98,7 @@ export class ToolToken implements INodeType {
 				return subject;
 			},
 		});
-
+		
 		return {
 			response: logWrapper(tool, this),
 		};

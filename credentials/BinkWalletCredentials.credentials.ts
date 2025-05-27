@@ -27,16 +27,8 @@ export class BinkWalletCredentials implements ICredentialType {
 		type: 'generic',
 		properties: {
 			qs: {
-				wallet_mnemonic: '={{$credentials.mnemonic}}',
+				mnemonic: '={{$credentials.mnemonic}}',
 			},
-		},
-	};
-
-	// The block below tells how this credential can be tested
-	test: ICredentialTestRequest = {
-		request: {
-			baseURL: 'https://api.openai.com/v1/chat/completions',
-			url: '',
 		},
 	};
 }

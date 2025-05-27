@@ -12,7 +12,11 @@ import { logWrapper } from '../../../utils/logWrapper';
 import { getConnectionHintNoticeField } from '../../../utils/sharedFields';
 import { DynamicTool } from '@langchain/core/tools';
 import { ToolName } from '../../../utils/toolName';
-
+import { deBridgeProvider } from '@binkai/debridge-provider';
+import { BridgePlugin } from '@binkai/bridge-plugin';
+import { SupportChain } from '../../../utils/networks';
+import { Connection } from '@solana/web3.js';
+import { ethers } from 'ethers';
 const bscBridgeProvider: INodeProperties[] = [
 	{
 		displayName: 'BSC Bridge Provider',
@@ -85,10 +89,53 @@ export class ToolBridge implements INodeType {
 			...bscBridgeProvider,
 			...solanaBridgeProvider,
 		],
+		credentials: [
+			{
+				name: 'binkaiCredentialsApi',
+				required: true,
+			},
+		],
 	};
+
+	private static bridgePlugin?: BridgePlugin;
+
+	async getBridgePlugin(): Promise<BridgePlugin | undefined> {
+		return ToolBridge.bridgePlugin;
+	}
 
 	async supplyData(this: ISupplyDataFunctions): Promise<SupplyData> {
 		this.logger.info('Supplying data for ToolBridge for BinkAIs');
+
+		const baseCredentials = await this.getCredentials('binkaiCredentialsApi');
+		const RPC_URLS = {
+			BNB: baseCredentials.bnbRpcUrl as string,
+			ETH: baseCredentials.ethRpcUrl as string,
+			SOL: baseCredentials.solRpcUrl as string,
+		};
+
+		const bscBridgeProvider = this.getNodeParameter('bscBridgeProvider', 0) as string[];
+		const solanaBridgeProvider = this.getNodeParameter('solanaBridgeProvider', 0) as string[];
+
+		let bscProvider;
+		let solanaProvider;
+
+		if (bscBridgeProvider?.length) {
+			bscProvider = new ethers.JsonRpcProvider(RPC_URLS.BNB);
+		}
+
+		if (solanaBridgeProvider?.length) {
+			solanaProvider = new Connection(RPC_URLS.SOL);
+		}
+
+		const debridge = new deBridgeProvider([bscProvider, solanaProvider], 56, 7565164);
+		const bridgePlugin = new BridgePlugin();
+		await bridgePlugin.initialize({
+			supportedChains: [SupportChain.BNB, SupportChain.ETHEREUM, SupportChain.SOLANA],
+			providers: [debridge],
+		});
+
+		ToolBridge.bridgePlugin = bridgePlugin;
+
 		const tool = new DynamicTool({
 			name: ToolName.BRIDGE_TOOL,
 			description: 'Bridge tool for BinkAI',
@@ -97,6 +144,7 @@ export class ToolBridge implements INodeType {
 			},
 		});
 
+		
 		return {
 			response: logWrapper(tool, this),
 		};

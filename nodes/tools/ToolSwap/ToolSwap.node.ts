@@ -12,6 +12,14 @@ import { logWrapper } from '../../../utils/logWrapper';
 import { getConnectionHintNoticeField } from '../../../utils/sharedFields';
 import { DynamicTool } from '@langchain/core/tools';
 import { ToolName } from '../../../utils/toolName';
+import { SupportChain } from '../../../utils/networks';
+import { SwapPlugin } from '@binkai/swap-plugin';
+import { KyberProvider } from '@binkai/kyber-provider';
+import { JupiterProvider } from '@binkai/jupiter-provider';
+import { OkuProvider } from '@binkai/oku-provider';
+import { ThenaProvider } from '@binkai/thena-provider';
+import { Connection } from '@solana/web3.js';
+import { ethers } from 'ethers';
 
 const bnbPotocolsTypeProperties: INodeProperties[] = [
 	{
@@ -91,10 +99,78 @@ export class ToolSwap implements INodeType {
 			...bnbPotocolsTypeProperties,
 			...solanaPotocolsTypeProperties,
 		],
+		credentials: [
+			{
+				name: 'binkaiCredentialsApi',
+				required: true,
+			},
+		],
 	};
+
+    
+
+	public static swapPlugin?: SwapPlugin;
+	
+	async getSwapPlugin(): Promise<any> {
+		return ToolSwap.swapPlugin;
+	}
 
 	async supplyData(this: ISupplyDataFunctions): Promise<SupplyData> {
 		this.logger.info('Supplying data for ToolSwap for BinkAIs');
+
+		const bnbSwapProtocols = this.getNodeParameter('bnbSwapProtocols', 0) as string[];
+		const solanaSwapProtocols = this.getNodeParameter('solanaSwapProtocols', 0) as string[];
+
+
+		const baseCredentials = await this.getCredentials('binkaiCredentialsApi');
+
+		const RPC_URLS = {
+			BNB: baseCredentials.bnbRpcUrl as string,
+			ETH: baseCredentials.ethRpcUrl as string,
+			SOL: baseCredentials.solRpcUrl as string,
+		};
+
+		let bscProvider;
+		let solanaProvider;
+
+
+		if (bnbSwapProtocols?.length) {
+			bscProvider = new ethers.JsonRpcProvider(RPC_URLS.BNB);
+		}
+		if (solanaSwapProtocols?.length) {
+			solanaProvider = new Connection(RPC_URLS.SOL);
+		}
+
+		let swapProtocols: any[] = [];
+		if (bnbSwapProtocols.includes('kyber')) {
+			const kyber = new KyberProvider(bscProvider, 56);
+			swapProtocols.push(kyber);
+		}
+		if (bnbSwapProtocols.includes('jupiter')) {
+			const jupiter = new JupiterProvider(solanaProvider);
+			swapProtocols.push(jupiter);
+		}
+		if (bnbSwapProtocols.includes('oku')) {
+			const oku = new OkuProvider(bscProvider, 56);
+			swapProtocols.push(oku);
+		}
+		if (bnbSwapProtocols.includes('thena')) {
+			const thena = new ThenaProvider(bscProvider, 56);
+			swapProtocols.push(thena);
+		}
+		if (solanaSwapProtocols.includes('jupiter')) {
+			const jupiter = new JupiterProvider(solanaProvider);
+			swapProtocols.push(jupiter);
+		}
+	
+		const swapPlugin = new SwapPlugin();
+		await swapPlugin.initialize({
+			defaultSlippage: 0.5,
+			defaultChain: SupportChain.BNB,
+			providers: swapProtocols,
+			supportedChains: [SupportChain.BNB, SupportChain.ETHEREUM, SupportChain.SOLANA],
+		});
+		ToolSwap.swapPlugin = swapPlugin;
 		const tool = new DynamicTool({
 			name: ToolName.SWAP_TOOL,
 			description: 'Swap tool for BinkAI',

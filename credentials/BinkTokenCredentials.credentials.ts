@@ -41,12 +41,4 @@ export class BinkTokenCredentials implements ICredentialType {
 			},
 		},
 	};
-
-	// The block below tells how this credential can be tested
-	test: ICredentialTestRequest = {
-		request: {
-			baseURL: 'https://api.openai.com/v1/chat/completions',
-			url: '',
-		},
-	};
 }

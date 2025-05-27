@@ -11,6 +11,10 @@ import { logWrapper } from '../../../utils/logWrapper';
 import { getConnectionHintNoticeField } from '../../../utils/sharedFields';
 import { DynamicTool } from '@langchain/core/tools';
 import { ToolName } from '../../../utils/toolName';
+import { WalletPlugin } from '@binkai/wallet-plugin';
+import { SupportChain } from '../../../utils/networks';
+import { AlchemyProvider } from '@binkai/alchemy-provider';
+import { BirdeyeProvider } from '@binkai/birdeye-provider';
 
 export class ToolWallet implements INodeType {
 	description: INodeTypeDescription = {
@@ -46,14 +50,36 @@ export class ToolWallet implements INodeType {
 		properties: [getConnectionHintNoticeField([NodeConnectionType.AiAgent])],
 		credentials: [
 			{
-				name: 'binkWalletCredentials',
+				name: 'binkaiTokenCredentials',
 				required: true,
 			},
 		]
 	};
 
+	private static walletPlugin?: WalletPlugin;
+
+	async getWalletPlugin(): Promise<any> {
+		return ToolWallet.walletPlugin;
+	}
+
 	async supplyData(this: ISupplyDataFunctions): Promise<SupplyData> {
 		this.logger.info('Supplying data for ToolWallet for BinkAIs');
+
+		const tokenCredentials = await this.getCredentials('binkaiTokenCredentials');
+		const birdeyeApiKey = tokenCredentials.birdeyeApiKey as string;
+		const alchemyApiKey = tokenCredentials.alchemyApiKey as string;
+
+
+		const birdeyeProvider = new BirdeyeProvider({ apiKey: birdeyeApiKey });
+		const alchemyProvider = new AlchemyProvider({ apiKey: alchemyApiKey });
+
+		const walletPlugin = new WalletPlugin();
+		await walletPlugin.initialize({
+			defaultChain: SupportChain.BNB,
+			providers: [birdeyeProvider, alchemyProvider],
+			supportedChains: [SupportChain.BNB, SupportChain.SOLANA, SupportChain.ETHEREUM],
+		});
+		ToolWallet.walletPlugin = walletPlugin;
 		const tool = new DynamicTool({
 			name: ToolName.WALLET_TOOL,
 			description: 'Wallet tool for BinkAI',
