@@ -17,30 +17,16 @@ import {
 } from '../../utils/output_parsers/N8nOutputParser';
 import { getPromptInputByType } from '../../utils/helpers';
 import { getChatModel, getOptionalMemory, getTools } from '../../utils/common';
-import { ToolName } from '../../utils/toolName';
 import type { BaseChatMemory } from '@langchain/community/memory/chat_memory';
 import { Wallet, Network } from '@binkai/core';
-import { ethers } from 'ethers';
-import { SwapPlugin } from '@binkai/swap-plugin';
-import { TokenPlugin } from '@binkai/token-plugin';
-import { WalletPlugin } from '@binkai/wallet-plugin';
-import { JupiterProvider } from '@binkai/jupiter-provider';
-import { KyberProvider } from '@binkai/kyber-provider';
-import { OkuProvider } from '@binkai/oku-provider';
-import { ThenaProvider } from '@binkai/thena-provider';
-import { AlchemyProvider } from '@binkai/alchemy-provider';
 import { N8nLLM } from '../N8NBase/N8nLLM';
 import { omit } from 'lodash';
 import { N8nBinkAgent } from '../N8NBase/N8nBinkAgent';
 import { DynamicStructuredTool, Tool } from '@langchain/core/tools';
-import { deBridgeProvider } from '@binkai/debridge-provider';
-import { Connection } from '@solana/web3.js';
-import { BridgePlugin } from '@binkai/bridge-plugin';
 // import { TransferPlugin } from '@binkai/transfer-plugin';
-import { BirdeyeProvider } from '@binkai/birdeye-provider';
 import { SYSTEM_MESSAGE } from '../../utils/prompt';
 import { planAndExecuteAgentProperties } from '../../utils/descriptions';
-import { getNetworksConfig, SupportChain } from '../../utils/networks';
+import { getNetworksConfig } from '../../utils/networks';
 
 function getInputs(
 	agent:
@@ -330,6 +316,7 @@ export class BinkAgentNode implements INodeType {
 			try {
 				const llm = new N8nLLM(await getChatModel(this));
 				const memory = (await getOptionalMemory(this)) as BaseChatMemory;
+
 				const n8nOptions = this.getNodeParameter('options', itemIndex, {}) as {
 					systemMessage?: string;
 					maxIterations?: number;
@@ -380,9 +367,16 @@ export class BinkAgentNode implements INodeType {
 					throw new NodeOperationError(this.getNode(), 'The "text" parameter is empty.');
 				}
 
-				const response = await binkAgent.execute({ input });
-
-				if (memory && outputParser) {
+				let response;
+				if (memory) {
+					const chatHistory = await memory.loadMemoryVariables({});
+					response = await binkAgent.execute(input, chatHistory);
+				} else {
+					response = await binkAgent.execute(input);
+				}
+				
+			
+				if (outputParser) {
 					const parsedOutput = jsonParse<{ output: Record<string, unknown> }>(
 						response.output as string,
 					);
