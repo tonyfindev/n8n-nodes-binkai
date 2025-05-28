@@ -17,30 +17,16 @@ import {
 } from '../../utils/output_parsers/N8nOutputParser';
 import { getPromptInputByType } from '../../utils/helpers';
 import { getChatModel, getOptionalMemory, getTools } from '../../utils/common';
-import { ToolName } from '../../utils/toolName';
 import type { BaseChatMemory } from '@langchain/community/memory/chat_memory';
 import { Wallet, Network } from '@binkai/core';
-import { ethers } from 'ethers';
-import { SwapPlugin } from '@binkai/swap-plugin';
-import { TokenPlugin } from '@binkai/token-plugin';
-import { WalletPlugin } from '@binkai/wallet-plugin';
-import { JupiterProvider } from '@binkai/jupiter-provider';
-import { KyberProvider } from '@binkai/kyber-provider';
-import { OkuProvider } from '@binkai/oku-provider';
-import { ThenaProvider } from '@binkai/thena-provider';
-import { AlchemyProvider } from '@binkai/alchemy-provider';
 import { N8nLLM } from '../N8NBase/N8nLLM';
 import { omit } from 'lodash';
 import { N8nBinkAgent } from '../N8NBase/N8nBinkAgent';
-import { DynamicStructuredTool } from '@langchain/core/tools';
-import { deBridgeProvider } from '@binkai/debridge-provider';
-import { Connection } from '@solana/web3.js';
-import { BridgePlugin } from '@binkai/bridge-plugin';
+import { DynamicStructuredTool, Tool } from '@langchain/core/tools';
 // import { TransferPlugin } from '@binkai/transfer-plugin';
-import { BirdeyeProvider } from '@binkai/birdeye-provider';
 import { SYSTEM_MESSAGE } from '../../utils/prompt';
 import { planAndExecuteAgentProperties } from '../../utils/descriptions';
-import { getNetworksConfig, SupportChain } from '../../utils/networks';
+import { getNetworksConfig } from '../../utils/networks';
 
 function getInputs(
 	agent:
@@ -296,6 +282,10 @@ export class BinkAgentNode implements INodeType {
 				name: 'binkaiCredentialsApi',
 				required: true,
 			},
+			{
+				name: 'binkWalletCredentials',
+				required: true,
+			},
 		],
 	};
 
@@ -304,118 +294,29 @@ export class BinkAgentNode implements INodeType {
 		const returnData: INodeExecutionData[] = [];
 		const items = this.getInputData();
 		const outputParser = (await getOptionalOutputParser(this)) as N8nOutputParser;
-		const tools = (await getTools(this, outputParser)) as DynamicStructuredTool[];
-
+		const toolsWithPlugins = (await getTools(this)) as Array<{ tool: DynamicStructuredTool | Tool, plugin?: any }>;
 		// Get credentials
 		const baseCredentials = await this.getCredentials('binkaiCredentialsApi');
 		const walletCredentials = await this.getCredentials('binkWalletCredentials');
-		const tokenCredentials = await this.getCredentials('binkaiTokenCredentials');
 		// Get RPC URLs from credentials
 		const RPC_URLS = {
 			BNB: baseCredentials.bnbRpcUrl as string,
 			ETH: baseCredentials.ethRpcUrl as string,
 			SOL: baseCredentials.solRpcUrl as string,
 		};
-
-		const birdeyeApiKey = tokenCredentials.birdeyeApiKey as string;
-		const alchemyApiKey = tokenCredentials.alchemyApiKey as string;
-
-		// Initialize providers
-		const birdeyeProvider = new BirdeyeProvider({ apiKey: birdeyeApiKey });
-		const alchemyProvider = new AlchemyProvider({ apiKey: alchemyApiKey });
-		const bscProvider = new ethers.JsonRpcProvider(RPC_URLS.BNB);
-		const solanaProvider = new Connection(RPC_URLS.SOL);
-
-		// Initialize plugins map
-		const pluginMap = new Map();
-		
-		const bnbSwapProtocols = this.getNodeParameter('bnbSwapProtocols', 0) as string[];
-		const solanaSwapProtocols = this.getNodeParameter('solanaSwapProtocols', 0) as string[];
-
-		let swapProtocols: any[] = [];
-		if (bnbSwapProtocols.includes('kyber')) {
-			const kyber = new KyberProvider(bscProvider, 56);
-			swapProtocols.push(kyber);
-		}
-		if (bnbSwapProtocols.includes('jupiter')) {
-			const jupiter = new JupiterProvider(solanaProvider);
-			swapProtocols.push(jupiter);
-		}
-		if (bnbSwapProtocols.includes('oku')) {
-			const oku = new OkuProvider(bscProvider, 56);
-			swapProtocols.push(oku);
-		}
-		if (bnbSwapProtocols.includes('thena')) {
-			const thena = new ThenaProvider(bscProvider, 56);
-			swapProtocols.push(thena);
-		}
-		if (solanaSwapProtocols.includes('jupiter')) {
-			const jupiter = new JupiterProvider(solanaProvider);
-			swapProtocols.push(jupiter);
-		}
-
-		// Initialize plugins based on available tools
-		for (const tool of tools) {
-			try {
-				switch (tool.name) {
-					case ToolName.SWAP_TOOL:
-						if (!pluginMap.has('swap')) {
-							const swapPlugin = new SwapPlugin();
-							await swapPlugin.initialize({
-								defaultSlippage: 0.5,
-								defaultChain: SupportChain.BNB,
-								providers: swapProtocols,
-								supportedChains: [SupportChain.BNB, SupportChain.ETHEREUM, SupportChain.SOLANA],
-							});
-							pluginMap.set('swap', swapPlugin);
-						}
-						break;
-
-					case ToolName.BRIDGE_TOOL:
-						if (!pluginMap.has('bridge')) {
-							const debridge = new deBridgeProvider([bscProvider, solanaProvider], 56, 7565164);
-							const bridgePlugin = new BridgePlugin();
-							await bridgePlugin.initialize({
-								supportedChains: [SupportChain.BNB, SupportChain.ETHEREUM, SupportChain.SOLANA],
-								providers: [debridge],
-							});
-							pluginMap.set('bridge', bridgePlugin);
-						}
-						break;
-
-					case ToolName.TOKEN_TOOL:
-						if (!pluginMap.has('token')) {
-							const tokenPlugin = new TokenPlugin();
-							await tokenPlugin.initialize({
-								defaultChain: SupportChain.BNB,
-								providers: [birdeyeProvider, alchemyProvider],
-								supportedChains: [SupportChain.SOLANA, SupportChain.BNB, SupportChain.ETHEREUM],
-							});
-							pluginMap.set('token', tokenPlugin);
-						}
-						break;
-
-					case ToolName.WALLET_TOOL:
-						if (!pluginMap.has('wallet')) {
-							const walletPlugin = new WalletPlugin();
-							await walletPlugin.initialize({
-								defaultChain: SupportChain.BNB,
-								providers: [birdeyeProvider, alchemyProvider],
-								supportedChains: [SupportChain.BNB, SupportChain.SOLANA, SupportChain.ETHEREUM],
-							});
-							pluginMap.set('wallet', walletPlugin);
-						}
-						break;
-				}
-			} catch (error) {
-				console.log(`Error initializing ${tool.name}:`, error);
-			}
+	
+		let tools: any[] = [];
+		let plugins: any[] = [];
+		for (const tool of toolsWithPlugins) {
+			tools.push(tool.tool);
+			plugins.push(tool.plugin);
 		}
 
 		for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
 			try {
 				const llm = new N8nLLM(await getChatModel(this));
 				const memory = (await getOptionalMemory(this)) as BaseChatMemory;
+
 				const n8nOptions = this.getNodeParameter('options', itemIndex, {}) as {
 					systemMessage?: string;
 					maxIterations?: number;
@@ -451,7 +352,7 @@ export class BinkAgentNode implements INodeType {
 				);
 
 				// Register all initialized plugins
-				for (const plugin of pluginMap.values()) {
+				for (const plugin of plugins) {
 					await binkAgent.registerPlugin(plugin);
 				}
 
@@ -466,9 +367,16 @@ export class BinkAgentNode implements INodeType {
 					throw new NodeOperationError(this.getNode(), 'The "text" parameter is empty.');
 				}
 
-				const response = await binkAgent.execute({ input });
-
-				if (memory && outputParser) {
+				let response;
+				if (memory) {
+					const chatHistory = await memory.loadMemoryVariables({});
+					response = await binkAgent.execute(input, chatHistory);
+				} else {
+					response = await binkAgent.execute(input);
+				}
+				
+			
+				if (outputParser) {
 					const parsedOutput = jsonParse<{ output: Record<string, unknown> }>(
 						response.output as string,
 					);

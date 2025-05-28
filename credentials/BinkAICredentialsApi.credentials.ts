@@ -36,7 +36,6 @@ export class BinkAICredentialsApi implements ICredentialType {
 		type: 'generic',
 		properties: {
 			qs: {
-				api_key: '={{$credentials.apiKey}}',
 				sol_rpc_url: '={{$credentials.solRpcUrl}}',
 				eth_rpc_url: '={{$credentials.ethRpcUrl}}',
 				bnb_rpc_url: '={{$credentials.bnbRpcUrl}}',
@@ -44,11 +43,5 @@ export class BinkAICredentialsApi implements ICredentialType {
 		},
 	};
 
-	// The block below tells how this credential can be tested
-	test: ICredentialTestRequest = {
-		request: {
-			baseURL: 'https://api.openai.com/v1/chat/completions',
-			url: '',
-		},
-	};
 }
+
