@@ -54,6 +54,18 @@ export class ToolToken implements INodeType {
 		outputNames: ['Tool'],
 		properties: [
 			getConnectionHintNoticeField([NodeConnectionType.AiAgent]),
+			{
+				displayName:
+					'This tool helps you get blockchain token information. It will use AI to determine these parameters from your input:<br><br>' +
+					'&nbsp;&nbsp; - <strong>query</strong> - Token address or symbol to search for (e.g., "BTC", "0x123...")<br>' +
+					'&nbsp;&nbsp; - <strong>network</strong> - Blockchain network (bnb, solana, ethereum, arbitrum, base, optimism, polygon)<br>' +
+					'&nbsp;&nbsp; - <strong>provider</strong> - Data provider to use (optional, will try all if not specified)<br>' +
+					'&nbsp;&nbsp; - <strong>includePrice</strong> - Include price data in response (optional, default: true)<br><br>' +
+					'Use this tool to retrieve token details, prices, and metadata across different blockchain networks.',
+				name: 'notice_tip',
+				type: 'notice',
+				default: '',
+			},
 			// ...protocolsTypeProperties,
 		],
 		credentials: [

@@ -47,7 +47,19 @@ export class ToolWallet implements INodeType {
 		// eslint-disable-next-line n8n-nodes-base/node-class-description-outputs-wrong
 		outputs: [NodeConnectionType.AiTool],
 		outputNames: ['Tool'],
-		properties: [getConnectionHintNoticeField([NodeConnectionType.AiAgent])],
+		properties: [
+			getConnectionHintNoticeField([NodeConnectionType.AiAgent]),
+			{
+				displayName:
+					'This tool helps you get wallet information and balances on blockchain networks. It will use AI to determine these parameters from your input:<br><br>' +
+					'&nbsp;&nbsp; - <strong>address</strong> - Wallet address to query (optional, uses agent wallet if not provided)<br>' +
+					'&nbsp;&nbsp; - <strong>network</strong> - Blockchain network to check (bnb, solana, ethereum) (optional)<br><br>' +
+					'Use this tool to retrieve wallet balances, transaction history, and account information across different blockchain networks.',
+				name: 'notice_tip',
+				type: 'notice',
+				default: '',
+			},
+		],
 		credentials: [
 			{
 				name: 'binkaiTokenCredentials',

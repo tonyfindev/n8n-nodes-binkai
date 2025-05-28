@@ -98,6 +98,22 @@ export class ToolSwap implements INodeType {
 			getConnectionHintNoticeField([NodeConnectionType.AiAgent]),
 			...bnbPotocolsTypeProperties,
 			...solanaPotocolsTypeProperties,
+			{
+				displayName:
+					'This tool helps you swap tokens on blockchain networks. It will use AI to determine these parameters from your input:<br><br>' +
+					'&nbsp;&nbsp; - <strong>fromToken</strong> - Address of source token to spend<br>' +
+					'&nbsp;&nbsp; - <strong>toToken</strong> - Address of destination token to receive<br>' +
+					'&nbsp;&nbsp; - <strong>amount</strong> - Amount of tokens to swap<br>' +
+					'&nbsp;&nbsp; - <strong>limitPrice</strong> - Price limit for the swap order (optional)<br>' +
+					'&nbsp;&nbsp; - <strong>amountType</strong> - Whether amount is input (spend) or output (receive)<br>' +
+					'&nbsp;&nbsp; - <strong>network</strong> - Blockchain network (bnb, solana, ethereum)<br>' +
+					'&nbsp;&nbsp; - <strong>provider</strong> - DEX provider to use (optional, will find best rate if not specified)<br>' +
+					'&nbsp;&nbsp; - <strong>slippage</strong> - Maximum slippage percentage allowed (optional)<br><br>' +
+					'Use this tool to execute token swaps across different blockchain networks and DEX providers.',
+				name: 'notice_tip',
+				type: 'notice',
+				default: '',
+			},
 		],
 		credentials: [
 			{

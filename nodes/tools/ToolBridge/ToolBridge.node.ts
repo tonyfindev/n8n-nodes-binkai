@@ -88,6 +88,21 @@ export class ToolBridge implements INodeType {
 			getConnectionHintNoticeField([NodeConnectionType.AiAgent]),
 			...bscBridgeProvider,
 			...solanaBridgeProvider,
+			{
+				displayName:
+					'This tool helps you bridge tokens between blockchain networks. It will use AI to determine these parameters from your input:<br><br>' +
+					'&nbsp;&nbsp; - <strong>fromNetwork</strong> - Source blockchain network to bridge from<br>' +
+					'&nbsp;&nbsp; - <strong>toNetwork</strong> - Destination blockchain network to bridge to<br>' +
+					'&nbsp;&nbsp; - <strong>fromToken</strong> - Address of token to send<br>' +
+					'&nbsp;&nbsp; - <strong>toToken</strong> - Address of token to receive<br>' +
+					'&nbsp;&nbsp; - <strong>amount</strong> - Amount of tokens to bridge<br>' +
+					'&nbsp;&nbsp; - <strong>amountType</strong> - Whether amount is input (send) or output (receive)<br>' +
+					'&nbsp;&nbsp; - <strong>provider</strong> - Bridge protocol provider (optional, will find best rate if not specified)<br><br>' +
+					'Use this tool to transfer tokens across different blockchain networks using bridge protocols.',
+				name: 'notice_tip',
+				type: 'notice',
+				default: '',
+			},
 		],
 		credentials: [
 			{
