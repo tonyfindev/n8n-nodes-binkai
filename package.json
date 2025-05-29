@@ -36,7 +36,9 @@
   "n8n": {
     "n8nNodesApiVersion": 1,
     "credentials": [
-      "dist/credentials/BinkAICredentialsApi.credentials.js"
+      "dist/credentials/BinkAICredentialsApi.credentials.js",
+      "dist/credentials/BinkWalletCredentials.credentials.js"
+
     ],
     "nodes": [
       "dist/nodes/BinkAgentNode/BinkAgentNode.node.js",

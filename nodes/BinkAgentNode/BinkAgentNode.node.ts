@@ -308,7 +308,7 @@ export class BinkAgentNode implements INodeType {
 			tools.push(tool.tool);
 			plugins.push(tool.plugin);
 		}
-
+		plugins = plugins.filter(plugin => plugin !== undefined);
 		for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
 			try {
 				const llm = new N8nLLM(await getChatModel(this));
