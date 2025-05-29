@@ -282,10 +282,7 @@ export class BinkAgentNode implements INodeType {
 				name: 'binkaiCredentialsApi',
 				required: true,
 			},
-			{
-				name: 'binkWalletCredentials',
-				required: true,
-			},
+			
 		],
 	};
 
@@ -297,7 +294,7 @@ export class BinkAgentNode implements INodeType {
 		const toolsWithPlugins = (await getTools(this)) as Array<{ tool: DynamicStructuredTool | Tool, plugin?: any }>;
 		// Get credentials
 		const baseCredentials = await this.getCredentials('binkaiCredentialsApi');
-		const walletCredentials = await this.getCredentials('binkWalletCredentials');
+
 		// Get RPC URLs from credentials
 		const RPC_URLS = {
 			BNB: baseCredentials.bnbRpcUrl as string,
@@ -329,7 +326,7 @@ export class BinkAgentNode implements INodeType {
 				const wallet = new Wallet(
 					{
 						seedPhrase:
-							(walletCredentials.mnemonic as string) ||
+							(baseCredentials.mnemonic as string) ||
 							'test test test test test test test test test test test test',
 						index: 0,
 					},

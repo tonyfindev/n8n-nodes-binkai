@@ -31,6 +31,17 @@ export class BinkAICredentialsApi implements ICredentialType {
 	displayName = 'Bink AI Credentials API';
 	properties: INodeProperties[] = [
 		...apiProviderProperties,
+		{
+			displayName: 'Wallet Mnemonic',
+			name: 'mnemonic',
+			type: 'string',
+			description: 'The mnemonic of the wallet to use for the agent',
+			required: true,
+			typeOptions: {
+				password: true,
+			},
+			default: '',
+		}
 	];
 	authenticate: IAuthenticateGeneric = {
 		type: 'generic',
@@ -39,6 +50,7 @@ export class BinkAICredentialsApi implements ICredentialType {
 				sol_rpc_url: '={{$credentials.solRpcUrl}}',
 				eth_rpc_url: '={{$credentials.ethRpcUrl}}',
 				bnb_rpc_url: '={{$credentials.bnbRpcUrl}}',
+				mnemonic: '={{$credentials.mnemonic}}',
 			},
 		},
 	};
